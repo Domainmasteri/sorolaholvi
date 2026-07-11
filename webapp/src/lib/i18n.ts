@@ -11,11 +11,11 @@ export type Locale =
   | 'zh-TW'
   | 'ru'
   | 'es'
+  | 'fi'
   | 'de'
   | 'fr'
   | 'it'
   | 'sv';
-  | 'fi';
 
 import enMessages from './i18n/locales/en';
 const LOCALE_STORAGE_KEY = 'nodewarden.locale';
