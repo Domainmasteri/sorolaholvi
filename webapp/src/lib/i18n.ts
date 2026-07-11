@@ -11,11 +11,11 @@ export type Locale =
   | 'zh-TW'
   | 'ru'
   | 'es'
-  | 'fi'
   | 'de'
   | 'fr'
   | 'it'
   | 'sv';
+  | 'fi';
 
 import enMessages from './i18n/locales/en';
 const LOCALE_STORAGE_KEY = 'nodewarden.locale';
@@ -241,7 +241,6 @@ export function translateServerError(message: string | null | undefined, fallbac
     'masterPasswordHash is required': 'txt_server_error_master_password_hash_required',
     'masterPasswordHash or userVerificationToken is required': 'txt_server_error_master_password_or_verification_required',
   }[normalized];
-
   return key ? t(key) : normalized;
 }
 
