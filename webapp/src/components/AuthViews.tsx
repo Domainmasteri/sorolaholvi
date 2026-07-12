@@ -113,11 +113,8 @@ function OfflineModeNotice() {
 }
 
 function AuthLocaleSwitcher() {
-  const [selectedLocale, setSelectedLocale] = useState<Locale>(() => getLocale());
-
   async function changeLocale(next: Locale): Promise<void> {
     if (next === getLocale()) return;
-    setSelectedLocale(next);
     await setLocale(next);
     window.location.reload();
   }
@@ -127,7 +124,7 @@ function AuthLocaleSwitcher() {
       <select
         className="input standalone-locale-select"
         aria-label={t('txt_display_language')}
-        value={selectedLocale}
+        defaultValue={getLocale()}
         onInput={(e) => void changeLocale((e.currentTarget as HTMLSelectElement).value as Locale)}
       >
         {AVAILABLE_LOCALES.map((option) => (
