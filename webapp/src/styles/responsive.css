@@ -73,7 +73,8 @@
   }
 
   .standalone-title-row {
-    padding-inline: 68px;
+    --standalone-title-start-width: 140px;
+    --standalone-title-end-width: 68px;
   }
 
   .standalone-footer {
@@ -788,6 +789,62 @@
   .domain-rules-grid,
   .password-settings-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .standalone-title-row {
+    @apply grid gap-2;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title title"
+      "start end";
+    --standalone-title-start-width: 0px;
+    --standalone-title-end-width: 0px;
+    padding-inline: 0;
+  }
+
+  .standalone-title {
+    grid-area: title;
+  }
+
+  .standalone-title-start,
+  .standalone-title-end {
+    @apply static;
+    transform: none;
+  }
+
+  .standalone-title-start {
+    grid-area: start;
+    justify-self: start;
+  }
+
+  .standalone-title-end {
+    grid-area: end;
+    justify-self: end;
+  }
+
+  .standalone-locale-switcher {
+    @apply w-full;
+  }
+
+  .standalone-locale-select {
+    @apply w-full min-w-0 max-w-none;
+  }
+}
+
+@media (max-width: 480px) {
+  .standalone-title-row {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "title"
+      "start"
+      "end";
+  }
+
+  .standalone-title-start,
+  .standalone-title-end {
+    justify-self: center;
   }
 
   .settings-category-tabs {

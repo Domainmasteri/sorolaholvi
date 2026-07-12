@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { AlertTriangle, ArrowLeft, Eye, EyeOff, KeyRound, LogIn, LogOut, Unlock, UserPlus } from 'lucide-preact';
 import NetworkStatusBadge from '@/components/NetworkStatusBadge';
 import StandalonePageFrame from '@/components/StandalonePageFrame';
-import { t } from '@/lib/i18n';
+import { AVAILABLE_LOCALES, getLocale, setLocale, t, type Locale } from '@/lib/i18n';
 import { getCurrentNetworkStatus, subscribeNetworkStatus, type NetworkStatus } from '@/lib/network-status';
 
 interface LoginValues {
@@ -112,6 +112,34 @@ function OfflineModeNotice() {
   );
 }
 
+function AuthLocaleSwitcher() {
+  const [selectedLocale, setSelectedLocale] = useState<Locale>(() => getLocale());
+
+  async function changeLocale(next: Locale): Promise<void> {
+    if (next === getLocale()) return;
+    setSelectedLocale(next);
+    await setLocale(next);
+    window.location.reload();
+  }
+
+  return (
+    <div className="standalone-locale-switcher">
+      <select
+        className="input standalone-locale-select"
+        aria-label={t('txt_display_language')}
+        value={selectedLocale}
+        onInput={(e) => void changeLocale((e.currentTarget as HTMLSelectElement).value as Locale)}
+      >
+        {AVAILABLE_LOCALES.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function AuthViews(props: AuthViewsProps) {
   const loginBusy = props.pendingAction === 'login';
   const passkeyBusy = props.pendingAction === 'passkey';
@@ -119,11 +147,16 @@ export default function AuthViews(props: AuthViewsProps) {
   const unlockBusy = props.pendingAction === 'unlock';
   const passkeyPasswordPending = !!props.pendingPasskeyPasswordEmail;
   const showInviteCodeField = props.registrationInviteRequired !== false || !!props.registerValues.inviteCode.trim();
+  const languageSwitcher = <AuthLocaleSwitcher />;
 
   if (props.mode === 'locked') {
     return (
       <div className="auth-page">
-        <StandalonePageFrame title={t('txt_unlock_vault')} titleAccessory={<NetworkStatusBadge />}>
+        <StandalonePageFrame
+          title={t('txt_unlock_vault')}
+          languageSwitcher={languageSwitcher}
+          titleAccessory={<NetworkStatusBadge />}
+        >
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -182,7 +215,11 @@ export default function AuthViews(props: AuthViewsProps) {
   if (props.mode === 'register') {
     return (
       <div className="auth-page">
-        <StandalonePageFrame title={t('txt_create_account')} titleAccessory={<NetworkStatusBadge />}>
+        <StandalonePageFrame
+          title={t('txt_create_account')}
+          languageSwitcher={languageSwitcher}
+          titleAccessory={<NetworkStatusBadge />}
+        >
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -266,7 +303,11 @@ export default function AuthViews(props: AuthViewsProps) {
 
   return (
     <div className="auth-page">
-      <StandalonePageFrame title={t('txt_log_in')} titleAccessory={<NetworkStatusBadge />}>
+      <StandalonePageFrame
+        title={t('txt_log_in')}
+        languageSwitcher={languageSwitcher}
+        titleAccessory={<NetworkStatusBadge />}
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
