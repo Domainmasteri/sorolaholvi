@@ -484,12 +484,39 @@
 
 .standalone-title-row {
   @apply relative mb-1 flex min-h-9 items-center justify-center;
-  padding-inline: 84px;
+  --standalone-title-start-width: 152px;
+  --standalone-title-end-width: 84px;
+  padding-inline-start: var(--standalone-title-start-width);
+  padding-inline-end: var(--standalone-title-end-width);
 }
 
-.standalone-title-row > .network-status-badge {
-  @apply absolute right-0 top-1/2;
+.standalone-title-start,
+.standalone-title-end {
+  @apply absolute top-1/2;
   transform: translateY(-50%);
+}
+
+.standalone-title-start {
+  @apply left-0;
+}
+
+.standalone-title-end {
+  @apply right-0;
+}
+
+.standalone-locale-switcher {
+  @apply flex max-w-full items-center;
+}
+
+.standalone-locale-select {
+  @apply h-9 min-w-[132px] max-w-[152px] rounded-xl px-3 pr-8 text-sm;
+  background-color: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.standalone-locale-select:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
 }
 
 .offline-mode-notice {
