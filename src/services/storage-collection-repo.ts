@@ -224,7 +224,7 @@ export async function getCollectionIdsByCipherIds(
   const result = new Map<string, string[]>();
   if (cipherIds.length === 0) return result;
 
-  // D1 has a 100-parameter limit per statement; chunk if needed.
+  // D1 caps prepared-statement parameters at 100; use 90 per chunk to stay safely under that limit.
   const CHUNK = 90;
   for (let i = 0; i < cipherIds.length; i += CHUNK) {
     const chunk = cipherIds.slice(i, i + CHUNK);

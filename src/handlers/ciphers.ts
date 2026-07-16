@@ -927,7 +927,7 @@ export async function handleGetCiphers(request: Request, env: Env, userId: strin
   for (const cipher of filteredCiphers) {
     const attachments = attachmentsByCipher.get(cipher.id) || [];
     const cIds = collectionIdsByCipher.get(cipher.id) ?? [];
-    const cipherWithCollections: any = { ...cipher, collectionIds: cIds };
+    const cipherWithCollections: Cipher = { ...cipher, collectionIds: cIds };
     cipherResponses.push(cipherToResponse(cipherWithCollections, attachments, responseOptions));
   }
 
@@ -960,7 +960,7 @@ export async function handleGetCipher(request: Request, env: Env, userId: string
     storage.getCollectionIdsForCipher(cipher.id),
   ]);
   const responseOptions = cipherResponseOptionsForRequest(request);
-  const cipherWithCollections: any = { ...cipher, collectionIds };
+  const cipherWithCollections: Cipher = { ...cipher, collectionIds };
   return jsonResponse(
     cipherToResponse(cipherWithCollections, attachments, responseOptions)
   );
@@ -1040,7 +1040,7 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
     deletedAt: null,
   };
   // Store organizationId on the cipher so org-scoped queries work.
-  (cipher as any).organizationId = organizationId ?? null;
+  cipher.organizationId = organizationId ?? null;
   cipher.folderId = createFolderId.present ? normalizeOptionalId(createFolderId.value) : normalizeOptionalId(cipher.folderId);
   cipher.key = normalizeCipherKeyForStorage(createKey.present ? createKey.value : cipher.key);
   cipher.login = createLogin.present ? (createLogin.value ?? null) : (cipher.login ?? null);
@@ -1072,11 +1072,11 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
   // Attach resolved collectionIds so notifications carry them.
-  (cipher as any).collectionIds = collectionIds;
+  cipher.collectionIds = collectionIds;
   notifyCipherCreateForRequest(request, env, cipher, revisionDate);
   const responseOptions = cipherResponseOptionsForRequest(request);
 
-  const responseCipher: Cipher = { ...(cipher as any), collectionIds } as any;
+  const responseCipher: Cipher = { ...cipher, collectionIds };
   return jsonResponse(
     cipherToResponse(responseCipher, [], responseOptions),
     200
@@ -1206,12 +1206,12 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
 
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
-  (cipher as any).collectionIds = resolvedCollectionIds;
+  cipher.collectionIds = resolvedCollectionIds;
   notifyCipherUpdateForRequest(request, env, cipher, revisionDate);
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
   const responseOptions = cipherResponseOptionsForRequest(request);
 
-  const responseCipher: Cipher = { ...(cipher as any), collectionIds: resolvedCollectionIds } as any;
+  const responseCipher: Cipher = { ...cipher, collectionIds: resolvedCollectionIds };
   return jsonResponse(
     cipherToResponse(responseCipher, attachments, responseOptions)
   );

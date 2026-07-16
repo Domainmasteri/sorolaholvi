@@ -366,6 +366,10 @@ export interface Cipher {
   updatedAt: string;
   archivedAt: string | null;
   deletedAt: string | null;
+  /** Organization that owns this cipher, if any. */
+  organizationId?: string | null;
+  /** Collections this cipher belongs to, resolved at read time. */
+  collectionIds?: string[];
   /** Allow unknown fields from Bitwarden clients to be stored and passed through transparently. */
   [key: string]: any;
 }

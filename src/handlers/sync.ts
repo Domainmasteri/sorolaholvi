@@ -1,4 +1,4 @@
-import { Env, SyncResponse, CipherResponse, FolderResponse, ProfileResponse } from '../types';
+import { Env, SyncResponse, CipherResponse, FolderResponse, ProfileResponse, Cipher } from '../types';
 import { StorageService } from '../services/storage';
 import { errorResponse } from '../utils/response';
 import { cipherToResponse, isCipherResponseSyncCompatible, shouldPreserveRepairableCipherUris } from './ciphers';
@@ -120,7 +120,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   const cipherResponses: CipherResponse[] = [];
   for (const cipher of allCiphers) {
     const cIds = collectionIdsByCipher.get(cipher.id) ?? [];
-    const cipherWithCollections: any = { ...cipher, collectionIds: cIds };
+    const cipherWithCollections: Cipher = { ...cipher, collectionIds: cIds };
     const response = cipherToResponse(cipherWithCollections, mergedAttachments.get(cipher.id) || [], { preserveRepairableUris, validFolderIds });
     if (isCipherResponseSyncCompatible(response)) {
       cipherResponses.push(response);

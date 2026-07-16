@@ -262,10 +262,8 @@ export async function handleUpdateCollectionUsers(
   for (const item of body) {
     if (!item || typeof item !== 'object') continue;
     const entry = item as Record<string, unknown>;
-    // Accept { orgUserId, id } interchangeably, and also plain strings.
-    const orgUserId = typeof entry === 'string'
-      ? entry
-      : String(entry.orgUserId ?? entry.id ?? '').trim();
+    // Accept { orgUserId, id } interchangeably.
+    const orgUserId = String(entry.orgUserId ?? entry.id ?? '').trim();
     if (!orgUserId) continue;
     users.push({
       collectionId,
