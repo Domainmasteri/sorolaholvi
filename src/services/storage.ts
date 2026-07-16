@@ -1,4 +1,4 @@
-import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, TrustedDeviceTokenSummary, RefreshTokenRecord, CustomEquivalentDomain, AccountPasskeyChallenge, AccountPasskeyChallengeScope, AccountPasskeyCredential, AuthRequestRecord } from '../types';
+import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, TrustedDeviceTokenSummary, RefreshTokenRecord, CustomEquivalentDomain, AccountPasskeyChallenge, AccountPasskeyChallengeScope, AccountPasskeyCredential, AuthRequestRecord, Organization, OrganizationUser } from '../types';
 import { LIMITS } from '../config/limits';
 import { ensurePushInstallationCredentials } from './push-relay';
 import { ensureStorageSchema } from './storage-schema';
@@ -155,6 +155,9 @@ import {
   updateAccountPasskeyCounter as updateStoredAccountPasskeyCounter,
   updateAccountPasskeyEncryption as updateStoredAccountPasskeyEncryption,
 } from './storage-account-passkey-repo';
+import {
+  createOrganizationWithOwner as createStoredOrganizationWithOwner,
+} from './storage-organization-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
@@ -162,8 +165,8 @@ const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
 // Bump this whenever src/services/storage-schema.ts or migrations/0001_init.sql
 // changes. Existing D1 installs only rerun ensureStorageSchema() when this value
 // differs from config.schema.version.
-const STORAGE_SCHEMA_VERSION = '2026-07-05-passkey-2fa';
-const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays'] as const;
+const STORAGE_SCHEMA_VERSION = '2026-07-16-organizations';
+const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays', 'organizations', 'organization_users'] as const;
 
 // D1-backed storage.
 // Contract:
@@ -947,5 +950,11 @@ export class StorageService {
       StorageService.lastAttachmentTokenCleanupAt = result.cleanedUpAt;
     }
     return result.consumed;
+  }
+
+  // --- Organizations ---
+
+  async createOrganizationWithOwner(org: Organization, orgUser: OrganizationUser): Promise<void> {
+    await createStoredOrganizationWithOwner(this.db, org, orgUser);
   }
 }

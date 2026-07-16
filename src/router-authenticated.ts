@@ -96,6 +96,7 @@ import {
   handleListPendingAuthRequests,
   handleUpdateAuthRequest,
 } from './handlers/auth-requests';
+import { handleCreateOrganization } from './handlers/organizations';
 
 export async function handleAuthenticatedRoute(
   request: Request,
@@ -412,6 +413,9 @@ export async function handleAuthenticatedRoute(
   if (path === '/api/organizations' || path.startsWith('/api/organizations/')) {
     if (method === 'GET') {
       return jsonResponse({ data: [], object: 'list', continuationToken: null });
+    }
+    if (method === 'POST' && path === '/api/organizations') {
+      return handleCreateOrganization(request, env, userId, currentUser);
     }
     return null;
   }

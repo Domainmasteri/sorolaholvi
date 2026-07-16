@@ -25,6 +25,77 @@ export interface Env {
 export type UserRole = 'admin' | 'user';
 export type UserStatus = 'active' | 'banned';
 
+// Organization user role (matches Bitwarden integer constants)
+// 0 = Owner, 1 = Admin, 2 = User, 3 = Manager, 4 = Custom
+export type OrgUserRole = 0 | 1 | 2 | 3 | 4;
+
+// Organization user status (matches Bitwarden integer constants)
+// -1 = Revoked, 0 = Invited, 1 = Accepted, 2 = Confirmed
+export type OrgUserStatus = -1 | 0 | 1 | 2;
+
+export interface Organization {
+  id: string;
+  name: string;
+  billingEmail: string | null;
+  plan: string;
+  publicKey: string | null;
+  privateKey: string | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationUser {
+  id: string;
+  organizationId: string;
+  userId: string | null;
+  email: string;
+  role: OrgUserRole;
+  status: OrgUserStatus;
+  /** Organization symmetric key encrypted with this user's RSA public key. */
+  key: string | null;
+  resetPasswordKey: string | null;
+  accessAll: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Bitwarden-compatible profileOrganization response shape. */
+export interface OrganizationResponse {
+  id: string;
+  name: string;
+  billingEmail: string | null;
+  plan: string;
+  planType: number;
+  seats: number;
+  maxCollections: number | null;
+  maxStorageGb: number | null;
+  use2fa: boolean;
+  useDirectory: boolean;
+  useEvents: boolean;
+  useGroups: boolean;
+  useTotp: boolean;
+  usePolicies: boolean;
+  useSso: boolean;
+  useKeyConnector: boolean;
+  useScim: boolean;
+  useCustomPermissions: boolean;
+  useResetPassword: boolean;
+  useSecretsManager: boolean;
+  selfHost: boolean;
+  enabled: boolean;
+  status: OrgUserStatus;
+  type: OrgUserRole;
+  key: string | null;
+  hasPublicAndPrivateKeys: boolean;
+  resetPasswordEnrolled: boolean;
+  userId: string | null;
+  identifier: string | null;
+  noAdminAccess: boolean;
+  isBillable: boolean;
+  object: 'profileOrganization';
+}
+
 // Attachment model
 export interface Attachment {
   id: string;
