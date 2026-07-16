@@ -10,7 +10,7 @@ function organizationToResponse(org: Organization, orgUser: OrganizationUser): O
     id: org.id,
     name: org.name,
     billingEmail: org.billingEmail,
-    plan: 'Free',
+    plan: 'free',
     planType: 0,
     seats: 2,
     maxCollections: null,

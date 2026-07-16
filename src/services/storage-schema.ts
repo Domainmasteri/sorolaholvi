@@ -168,8 +168,6 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'public_key TEXT, private_key TEXT, enabled INTEGER NOT NULL DEFAULT 1, ' +
   'created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
 
-  'CREATE INDEX IF NOT EXISTS idx_organizations_name ON organizations(name)',
-
   'CREATE TABLE IF NOT EXISTS organization_users (' +
   'id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, user_id TEXT, email TEXT NOT NULL, ' +
   'role INTEGER NOT NULL DEFAULT 2, status INTEGER NOT NULL DEFAULT 0, ' +

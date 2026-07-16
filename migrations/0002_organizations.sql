@@ -22,8 +22,6 @@ CREATE TABLE IF NOT EXISTS organizations (
   updated_at   TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_organizations_name ON organizations(name);
-
 -- role values (match Bitwarden integer constants):
 --   0 = Owner, 1 = Admin, 2 = User, 3 = Manager, 4 = Custom
 -- status values (match Bitwarden integer constants):
