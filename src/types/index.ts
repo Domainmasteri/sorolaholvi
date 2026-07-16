@@ -96,6 +96,32 @@ export interface OrganizationResponse {
   object: 'profileOrganization';
 }
 
+export interface Collection {
+  id: string;
+  organizationId: string;
+  name: string;   // encrypted by client
+  externalId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollectionUser {
+  collectionId: string;
+  orgUserId: string;
+  readOnly: boolean;
+  hidePasswords: boolean;
+}
+
+export interface CollectionResponse {
+  id: string;
+  organizationId: string;
+  name: string;
+  externalId: string | null;
+  readOnly: boolean;
+  hidePasswords: boolean;
+  object: 'collection';
+}
+
 // Attachment model
 export interface Attachment {
   id: string;

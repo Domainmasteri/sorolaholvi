@@ -874,6 +874,9 @@ export async function handleGetCiphers(request: Request, env: Env, userId: strin
   const includeDeleted = url.searchParams.get('deleted') === 'true';
   const pagination = parsePagination(url);
 
+  // Determine the full set of cipher IDs accessible to this user (personal + org via collections).
+  const accessibleIds = await storage.getAccessibleCipherIds(userId);
+
   let filteredCiphers: Cipher[];
   let continuationToken: string | null = null;
   if (pagination) {
@@ -886,14 +889,34 @@ export async function handleGetCiphers(request: Request, env: Env, userId: strin
     const hasNext = pageRows.length > pagination.limit;
     filteredCiphers = hasNext ? pageRows.slice(0, pagination.limit) : pageRows;
     continuationToken = hasNext ? encodeContinuationToken(pagination.offset + filteredCiphers.length) : null;
+    // For paginated responses, also include org ciphers not yet visible in personal list.
+    const personalIds = new Set(filteredCiphers.map((c) => c.id));
+    for (const id of accessibleIds) {
+      if (!personalIds.has(id)) {
+        const c = await storage.getCipher(id);
+        if (c) filteredCiphers.push(c);
+      }
+    }
   } else {
     const ciphers = await storage.getAllCiphers(userId);
+    // Merge personal ciphers with accessible org ciphers.
+    const seen = new Set(ciphers.map((c) => c.id));
+    const merged = [...ciphers];
+    for (const id of accessibleIds) {
+      if (!seen.has(id)) {
+        const c = await storage.getCipher(id);
+        if (c) merged.push(c);
+      }
+    }
     filteredCiphers = includeDeleted
-      ? ciphers
-      : ciphers.filter(c => !c.deletedAt);
+      ? merged
+      : merged.filter(c => !c.deletedAt);
   }
 
   const attachmentsByCipher = await storage.getAttachmentsByCipherIds(
+    filteredCiphers.map((cipher) => cipher.id)
+  );
+  const collectionIdsByCipher = await storage.getCollectionIdsByCipherIds(
     filteredCiphers.map((cipher) => cipher.id)
   );
   const validFolderIds = new Set((await storage.getAllFolders(userId)).map((folder) => folder.id));
@@ -903,7 +926,9 @@ export async function handleGetCiphers(request: Request, env: Env, userId: strin
   const cipherResponses: CipherResponse[] = [];
   for (const cipher of filteredCiphers) {
     const attachments = attachmentsByCipher.get(cipher.id) || [];
-    cipherResponses.push(cipherToResponse(cipher, attachments, responseOptions));
+    const cIds = collectionIdsByCipher.get(cipher.id) ?? [];
+    const cipherWithCollections: any = { ...cipher, collectionIds: cIds };
+    cipherResponses.push(cipherToResponse(cipherWithCollections, attachments, responseOptions));
   }
 
   return jsonResponse({
@@ -916,16 +941,28 @@ export async function handleGetCiphers(request: Request, env: Env, userId: strin
 // GET /api/ciphers/:id
 export async function handleGetCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
   const storage = new StorageService(env.DB);
-  const cipher = await storage.getCipherForUser(id, userId);
+  let cipher = await storage.getCipherForUser(id, userId);
 
-  if (!cipher || cipher.userId !== userId) {
+  // Also allow access if the cipher belongs to an org the user has access to.
+  if (!cipher) {
+    const accessible = await storage.getAccessibleCipherIds(userId);
+    if (accessible.has(id)) {
+      cipher = await storage.getCipher(id);
+    }
+  }
+
+  if (!cipher) {
     return errorResponse('Cipher not found', 404);
   }
 
-  const attachments = await storage.getAttachmentsByCipher(cipher.id);
+  const [attachments, collectionIds] = await Promise.all([
+    storage.getAttachmentsByCipher(cipher.id),
+    storage.getCollectionIdsForCipher(cipher.id),
+  ]);
   const responseOptions = cipherResponseOptionsForRequest(request);
+  const cipherWithCollections: any = { ...cipher, collectionIds };
   return jsonResponse(
-    cipherToResponse(cipher, attachments, responseOptions)
+    cipherToResponse(cipherWithCollections, attachments, responseOptions)
   );
 }
 
@@ -965,6 +1002,27 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
     return errorResponse('Cipher key encryption is not supported by this server. Resync the client and try again.', 400);
   }
 
+  // Read organizationId and collectionIds from the body (top level or inside cipherData).
+  const organizationId = normalizeOptionalId(
+    body.organizationId ?? body.OrganizationId ?? cipherData.organizationId ?? cipherData.OrganizationId ?? null
+  );
+  const rawCollectionIds: string[] = Array.isArray(body.collectionIds ?? body.CollectionIds)
+    ? (body.collectionIds ?? body.CollectionIds)
+    : Array.isArray(cipherData.collectionIds ?? cipherData.CollectionIds)
+      ? (cipherData.collectionIds ?? cipherData.CollectionIds)
+      : [];
+  const collectionIds = rawCollectionIds
+    .map((id) => String(id || '').trim())
+    .filter(Boolean);
+
+  // If an organizationId is provided, verify the user is a confirmed member.
+  if (organizationId) {
+    const membership = await storage.getOrganizationByIdForUser(organizationId, userId);
+    if (!membership || membership.orgUser.status !== 2) {
+      return errorResponse('Organization not found or membership not confirmed', 403);
+    }
+  }
+
   const now = new Date().toISOString();
   // Opaque passthrough: spread ALL client fields to preserve unknown/future ones,
   // then override only server-controlled fields.
@@ -981,6 +1039,8 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
     archivedAt: readCipherArchivedAt(cipherData, null),
     deletedAt: null,
   };
+  // Store organizationId on the cipher so org-scoped queries work.
+  (cipher as any).organizationId = organizationId ?? null;
   cipher.folderId = createFolderId.present ? normalizeOptionalId(createFolderId.value) : normalizeOptionalId(cipher.folderId);
   cipher.key = normalizeCipherKeyForStorage(createKey.present ? createKey.value : cipher.key);
   cipher.login = createLogin.present ? (createLogin.value ?? null) : (cipher.login ?? null);
@@ -1004,14 +1064,21 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
     if (!folderOk) return errorResponse('Folder not found', 404);
   }
 
+  // Atomically save the cipher and its collection memberships.
   await storage.saveCipher(cipher);
+  if (collectionIds.length > 0) {
+    await storage.replaceCipherCollections(cipher.id, collectionIds);
+  }
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
+  // Attach resolved collectionIds so notifications carry them.
+  (cipher as any).collectionIds = collectionIds;
   notifyCipherCreateForRequest(request, env, cipher, revisionDate);
   const responseOptions = cipherResponseOptionsForRequest(request);
 
+  const responseCipher: Cipher = { ...(cipher as any), collectionIds } as any;
   return jsonResponse(
-    cipherToResponse(cipher, [], responseOptions),
+    cipherToResponse(responseCipher, [], responseOptions),
     200
   );
 }
@@ -1122,14 +1189,31 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
 
   await syncIncomingAttachmentMetadata(storage, cipher.id, cipherData);
   await storage.saveCipher(cipher);
+
+  // Update collection membership if collectionIds are present in the body.
+  const rawUpdateCollectionIds: string[] | undefined = Array.isArray(body.collectionIds ?? body.CollectionIds)
+    ? (body.collectionIds ?? body.CollectionIds)
+    : Array.isArray(cipherData.collectionIds ?? cipherData.CollectionIds)
+      ? (cipherData.collectionIds ?? cipherData.CollectionIds)
+      : undefined;
+  let resolvedCollectionIds: string[];
+  if (rawUpdateCollectionIds !== undefined) {
+    resolvedCollectionIds = rawUpdateCollectionIds.map((id) => String(id || '').trim()).filter(Boolean);
+    await storage.replaceCipherCollections(cipher.id, resolvedCollectionIds);
+  } else {
+    resolvedCollectionIds = await storage.getCollectionIdsForCipher(cipher.id);
+  }
+
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
+  (cipher as any).collectionIds = resolvedCollectionIds;
   notifyCipherUpdateForRequest(request, env, cipher, revisionDate);
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
   const responseOptions = cipherResponseOptionsForRequest(request);
 
+  const responseCipher: Cipher = { ...(cipher as any), collectionIds: resolvedCollectionIds } as any;
   return jsonResponse(
-    cipherToResponse(cipher, attachments, responseOptions)
+    cipherToResponse(responseCipher, attachments, responseOptions)
   );
 }
 

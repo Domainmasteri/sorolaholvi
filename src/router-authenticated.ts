@@ -105,6 +105,13 @@ import {
   handleAcceptOrganizationUserInvite,
   handleConfirmOrganizationUser,
 } from './handlers/organizations';
+import {
+  handleCreateCollection,
+  handleGetCollections,
+  handleUpdateCollection,
+  handleDeleteCollection,
+  handleUpdateCollectionUsers,
+} from './handlers/collections';
 
 export async function handleAuthenticatedRoute(
   request: Request,
@@ -446,6 +453,29 @@ export async function handleAuthenticatedRoute(
   const orgUsersMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/users$/i);
   if (orgUsersMatch) {
     if (method === 'GET') return handleGetOrganizationUsers(request, env, userId, orgUsersMatch[1]);
+    return errorResponse('Method not allowed', 405);
+  }
+
+  // PUT /api/organizations/:orgId/collections/:colId/users
+  const colUsersMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/collections\/([a-f0-9-]+)\/users$/i);
+  if (colUsersMatch) {
+    if (method === 'PUT' || method === 'POST') return handleUpdateCollectionUsers(request, env, userId, colUsersMatch[1], colUsersMatch[2]);
+    return errorResponse('Method not allowed', 405);
+  }
+
+  // PUT/DELETE /api/organizations/:orgId/collections/:colId
+  const colMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/collections\/([a-f0-9-]+)$/i);
+  if (colMatch) {
+    if (method === 'PUT' || method === 'POST') return handleUpdateCollection(request, env, userId, colMatch[1], colMatch[2]);
+    if (method === 'DELETE') return handleDeleteCollection(request, env, userId, colMatch[1], colMatch[2]);
+    return null;
+  }
+
+  // GET/POST /api/organizations/:orgId/collections
+  const colListMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/collections$/i);
+  if (colListMatch) {
+    if (method === 'GET') return handleGetCollections(request, env, userId, colListMatch[1]);
+    if (method === 'POST') return handleCreateCollection(request, env, userId, colListMatch[1]);
     return errorResponse('Method not allowed', 405);
   }
 
