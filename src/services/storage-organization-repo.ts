@@ -138,3 +138,197 @@ export async function getOrganizationByIdForUser(
   if (!row) return null;
   return rowToOrgAndUser(row);
 }
+
+// ---------------------------------------------------------------------------
+// Organization user management
+// ---------------------------------------------------------------------------
+
+/** Slim row returned by the org-user list query (includes user display info). */
+interface OrgUserListRow {
+  id: string;
+  organization_id: string;
+  user_id: string | null;
+  email: string;
+  role: number;
+  status: number;
+  key: string | null;
+  reset_password_key: string | null;
+  access_all: number;
+  created_at: string;
+  updated_at: string;
+  // joined from users table (may be null for pending invites)
+  user_name: string | null;
+  totp_secret: string | null;
+}
+
+export interface OrgUserDetails {
+  orgUser: OrganizationUser;
+  name: string | null;
+  twoFactorEnabled: boolean;
+}
+
+/**
+ * Returns all organization_user records for a given org, joined with the
+ * users table for display name and 2FA status.
+ */
+export async function getOrgUsersByOrgId(
+  db: D1Database,
+  organizationId: string
+): Promise<OrgUserDetails[]> {
+  const rows = await db
+    .prepare(
+      'SELECT ou.id, ou.organization_id, ou.user_id, ou.email, ou.role, ou.status, ou.key, ' +
+      'ou.reset_password_key, ou.access_all, ou.created_at, ou.updated_at, ' +
+      'u.name AS user_name, u.totp_secret ' +
+      'FROM organization_users ou ' +
+      'LEFT JOIN users u ON u.id = ou.user_id ' +
+      'WHERE ou.organization_id = ?'
+    )
+    .bind(organizationId)
+    .all<OrgUserListRow>();
+
+  return (rows.results ?? []).map((row) => ({
+    orgUser: {
+      id: row.id,
+      organizationId: row.organization_id,
+      userId: row.user_id,
+      email: row.email,
+      role: row.role as OrgUserRole,
+      status: row.status as OrgUserStatus,
+      key: row.key,
+      resetPasswordKey: row.reset_password_key,
+      accessAll: row.access_all === 1,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    },
+    name: row.user_name ?? null,
+    twoFactorEnabled: !!row.totp_secret,
+  }));
+}
+
+interface OrgUserRow {
+  id: string;
+  organization_id: string;
+  user_id: string | null;
+  email: string;
+  role: number;
+  status: number;
+  key: string | null;
+  reset_password_key: string | null;
+  access_all: number;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapOrgUserRow(row: OrgUserRow): OrganizationUser {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    userId: row.user_id,
+    email: row.email,
+    role: row.role as OrgUserRole,
+    status: row.status as OrgUserStatus,
+    key: row.key,
+    resetPasswordKey: row.reset_password_key,
+    accessAll: row.access_all === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Returns an org_user record by its own ID, or null if not found. */
+export async function getOrgUserById(
+  db: D1Database,
+  orgUserId: string
+): Promise<OrganizationUser | null> {
+  const row = await db
+    .prepare(
+      'SELECT id, organization_id, user_id, email, role, status, key, ' +
+      'reset_password_key, access_all, created_at, updated_at ' +
+      'FROM organization_users WHERE id = ?'
+    )
+    .bind(orgUserId)
+    .first<OrgUserRow>();
+  if (!row) return null;
+  return mapOrgUserRow(row);
+}
+
+/** Returns an org_user record by org ID and email, or null if not found. */
+export async function getOrgUserByOrgAndEmail(
+  db: D1Database,
+  organizationId: string,
+  email: string
+): Promise<OrganizationUser | null> {
+  const row = await db
+    .prepare(
+      'SELECT id, organization_id, user_id, email, role, status, key, ' +
+      'reset_password_key, access_all, created_at, updated_at ' +
+      'FROM organization_users WHERE organization_id = ? AND email = ?'
+    )
+    .bind(organizationId, email.toLowerCase())
+    .first<OrgUserRow>();
+  if (!row) return null;
+  return mapOrgUserRow(row);
+}
+
+/** Inserts a new org_user invite record. */
+export async function insertOrgUser(
+  db: D1Database,
+  orgUser: OrganizationUser
+): Promise<void> {
+  await db
+    .prepare(
+      'INSERT INTO organization_users(id, organization_id, user_id, email, role, status, key, ' +
+      'reset_password_key, access_all, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    .bind(
+      orgUser.id,
+      orgUser.organizationId,
+      orgUser.userId ?? null,
+      orgUser.email,
+      orgUser.role,
+      orgUser.status,
+      orgUser.key ?? null,
+      orgUser.resetPasswordKey ?? null,
+      orgUser.accessAll ? 1 : 0,
+      orgUser.createdAt,
+      orgUser.updatedAt
+    )
+    .run();
+}
+
+/**
+ * Transitions an invited org_user to Accepted (status = 1).
+ * Links the user account ID and records the timestamp.
+ */
+export async function acceptOrgUserInvite(
+  db: D1Database,
+  orgUserId: string,
+  userId: string,
+  updatedAt: string
+): Promise<void> {
+  await db
+    .prepare(
+      'UPDATE organization_users SET user_id = ?, status = 1, updated_at = ? WHERE id = ?'
+    )
+    .bind(userId, updatedAt, orgUserId)
+    .run();
+}
+
+/**
+ * Transitions an accepted org_user to Confirmed (status = 2).
+ * Stores the org symmetric key encrypted with the user's public key.
+ */
+export async function confirmOrgUser(
+  db: D1Database,
+  orgUserId: string,
+  key: string,
+  updatedAt: string
+): Promise<void> {
+  await db
+    .prepare(
+      'UPDATE organization_users SET key = ?, status = 2, updated_at = ? WHERE id = ?'
+    )
+    .bind(key, updatedAt, orgUserId)
+    .run();
+}

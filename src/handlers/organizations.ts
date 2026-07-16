@@ -1,4 +1,4 @@
-import type { Env, User, Organization, OrganizationUser, OrganizationResponse } from '../types';
+import type { Env, User, Organization, OrganizationUser, OrganizationResponse, OrgUserRole } from '../types';
 import { StorageService } from '../services/storage';
 import { jsonResponse, errorResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
@@ -180,4 +180,288 @@ export async function handleCreateOrganization(
   });
 
   return jsonResponse(organizationToResponse(org, orgUser), 200);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Returns true if the role is Owner (0) or Admin (1). */
+function isOwnerOrAdmin(role: OrgUserRole): boolean {
+  return role === 0 || role === 1;
+}
+
+/** Bitwarden-compatible organizationUserUserDetails response shape. */
+interface OrgUserDetailsResponse {
+  id: string;
+  userId: string | null;
+  name: string | null;
+  email: string;
+  twoFactorEnabled: boolean;
+  status: number;
+  type: number;
+  accessAll: boolean;
+  externalId: null;
+  resetPasswordEnrolled: boolean;
+  object: 'organizationUserUserDetails';
+}
+
+function orgUserToDetailsResponse(
+  orgUser: OrganizationUser,
+  name: string | null,
+  twoFactorEnabled: boolean
+): OrgUserDetailsResponse {
+  return {
+    id: orgUser.id,
+    userId: orgUser.userId,
+    name,
+    email: orgUser.email,
+    twoFactorEnabled,
+    status: orgUser.status,
+    type: orgUser.role,
+    accessAll: orgUser.accessAll,
+    externalId: null,
+    resetPasswordEnrolled: false,
+    object: 'organizationUserUserDetails',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/organizations/:id/users
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns all members of the organisation. Requires the requesting user to
+ * be a member themselves (any role).
+ */
+export async function handleGetOrganizationUsers(
+  _request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  // Verify the requesting user belongs to this org.
+  const membership = await storage.getOrganizationByIdForUser(organizationId, userId);
+  if (!membership) {
+    return errorResponse('Not found', 404);
+  }
+
+  const details = await storage.getOrgUsersByOrgId(organizationId);
+  const data = details.map(({ orgUser, name, twoFactorEnabled }) =>
+    orgUserToDetailsResponse(orgUser, name, twoFactorEnabled)
+  );
+  return jsonResponse({ data, object: 'list', continuationToken: null });
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/organizations/:id/users/invite
+// ---------------------------------------------------------------------------
+
+/**
+ * Invites one or more users to the organisation (Owner/Admin only).
+ * Creates an organization_users record with status = 0 (Invited) for each email.
+ *
+ * Expected body:
+ * {
+ *   emails: string[];       // list of email addresses to invite
+ *   type?: number;          // role (default: 2 = User)
+ *   accessAll?: boolean;    // default false
+ * }
+ */
+export async function handleInviteOrganizationUser(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  const membership = await storage.getOrganizationByIdForUser(organizationId, userId);
+  if (!membership) {
+    return errorResponse('Not found', 404);
+  }
+  if (!isOwnerOrAdmin(membership.orgUser.role)) {
+    return errorResponse('You do not have permission to invite members', 403);
+  }
+
+  let body: { emails?: unknown; type?: unknown; accessAll?: unknown };
+  try {
+    body = await request.json() as typeof body;
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  if (!Array.isArray(body.emails) || body.emails.length === 0) {
+    return errorResponse('At least one email is required', 400);
+  }
+
+  const emails = body.emails as unknown[];
+  for (const e of emails) {
+    if (typeof e !== 'string' || !e.trim()) {
+      return errorResponse('Invalid email in list', 400);
+    }
+  }
+
+  const role = (typeof body.type === 'number' && [0, 1, 2, 3, 4].includes(body.type)
+    ? body.type
+    : 2) as OrgUserRole;
+  const accessAll = typeof body.accessAll === 'boolean' ? body.accessAll : false;
+  const now = new Date().toISOString();
+
+  for (const rawEmail of emails as string[]) {
+    const email = rawEmail.trim().toLowerCase();
+
+    // Skip if already a member.
+    const existing = await storage.getOrgUserByOrgAndEmail(organizationId, email);
+    if (existing) continue;
+
+    const orgUser: OrganizationUser = {
+      id: generateUUID(),
+      organizationId,
+      userId: null,
+      email,
+      role,
+      status: 0,
+      key: null,
+      resetPasswordKey: null,
+      accessAll,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await storage.insertOrgUser(orgUser);
+  }
+
+  await writeAuditEvent(storage, {
+    actorUserId: userId,
+    action: 'organization.invite',
+    category: 'data',
+    level: 'info',
+    targetType: 'organization',
+    targetId: organizationId,
+    metadata: {
+      emails: (emails as string[]).map((e) => e.trim().toLowerCase()),
+      ...auditRequestMetadata(request),
+    },
+  });
+
+  return jsonResponse({});
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/organizations/:orgId/users/:orgUserId/accept
+// ---------------------------------------------------------------------------
+
+/**
+ * Accepting user calls this endpoint after clicking the invite link.
+ * The authenticated user must have the same email as the org_user record.
+ * Sets status from 0 (Invited) → 1 (Accepted) and links the user account.
+ *
+ * Expected body (currently ignored – no email token required):
+ * { token?: string }
+ */
+export async function handleAcceptOrganizationUserInvite(
+  request: Request,
+  env: Env,
+  userId: string,
+  currentUser: User,
+  organizationId: string,
+  orgUserId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  const orgUser = await storage.getOrgUserById(orgUserId);
+  if (!orgUser || orgUser.organizationId !== organizationId) {
+    return errorResponse('Not found', 404);
+  }
+
+  // The calling user's email must match the invite.
+  if (orgUser.email.toLowerCase() !== currentUser.email.toLowerCase()) {
+    return errorResponse('This invitation is for a different email address', 400);
+  }
+
+  if (orgUser.status !== 0) {
+    return errorResponse('Invitation is no longer valid', 400);
+  }
+
+  const now = new Date().toISOString();
+  await storage.acceptOrgUserInvite(orgUserId, userId, now);
+
+  await writeAuditEvent(storage, {
+    actorUserId: userId,
+    action: 'organization.accept',
+    category: 'data',
+    level: 'info',
+    targetType: 'organization',
+    targetId: organizationId,
+    metadata: { orgUserId, ...auditRequestMetadata(request) },
+  });
+
+  return jsonResponse({});
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/organizations/:orgId/users/:orgUserId/confirm
+// ---------------------------------------------------------------------------
+
+/**
+ * Owner/Admin confirms an accepted member. The request body must contain
+ * the org symmetric key encrypted with the member's RSA public key.
+ * Sets status from 1 (Accepted) → 2 (Confirmed).
+ *
+ * Expected body:
+ * { key: string }
+ */
+export async function handleConfirmOrganizationUser(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  orgUserId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  const membership = await storage.getOrganizationByIdForUser(organizationId, userId);
+  if (!membership) {
+    return errorResponse('Not found', 404);
+  }
+  if (!isOwnerOrAdmin(membership.orgUser.role)) {
+    return errorResponse('You do not have permission to confirm members', 403);
+  }
+
+  const orgUser = await storage.getOrgUserById(orgUserId);
+  if (!orgUser || orgUser.organizationId !== organizationId) {
+    return errorResponse('Not found', 404);
+  }
+
+  if (orgUser.status !== 1) {
+    return errorResponse('User has not accepted the invitation', 400);
+  }
+
+  let body: { key?: unknown };
+  try {
+    body = await request.json() as typeof body;
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  if (!body.key || typeof body.key !== 'string' || !body.key.trim()) {
+    return errorResponse('Organization key is required', 400);
+  }
+
+  const now = new Date().toISOString();
+  await storage.confirmOrgUser(orgUserId, body.key.trim(), now);
+
+  await writeAuditEvent(storage, {
+    actorUserId: userId,
+    action: 'organization.confirm',
+    category: 'data',
+    level: 'info',
+    targetType: 'organization',
+    targetId: organizationId,
+    metadata: { orgUserId, ...auditRequestMetadata(request) },
+  });
+
+  return jsonResponse({});
 }

@@ -96,7 +96,15 @@ import {
   handleListPendingAuthRequests,
   handleUpdateAuthRequest,
 } from './handlers/auth-requests';
-import { handleCreateOrganization, handleGetOrganizations, handleGetOrganization } from './handlers/organizations';
+import {
+  handleCreateOrganization,
+  handleGetOrganizations,
+  handleGetOrganization,
+  handleGetOrganizationUsers,
+  handleInviteOrganizationUser,
+  handleAcceptOrganizationUserInvite,
+  handleConfirmOrganizationUser,
+} from './handlers/organizations';
 
 export async function handleAuthenticatedRoute(
   request: Request,
@@ -416,12 +424,39 @@ export async function handleAuthenticatedRoute(
     return errorResponse('Method not allowed', 405);
   }
 
+  // POST /api/organizations/:orgId/users/invite
+  const orgInviteMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/users\/invite$/i);
+  if (orgInviteMatch && method === 'POST') {
+    return handleInviteOrganizationUser(request, env, userId, orgInviteMatch[1]);
+  }
+
+  // POST /api/organizations/:orgId/users/:orgUserId/accept
+  const orgAcceptMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/users\/([a-f0-9-]+)\/accept$/i);
+  if (orgAcceptMatch && method === 'POST') {
+    return handleAcceptOrganizationUserInvite(request, env, userId, currentUser, orgAcceptMatch[1], orgAcceptMatch[2]);
+  }
+
+  // POST /api/organizations/:orgId/users/:orgUserId/confirm
+  const orgConfirmMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/users\/([a-f0-9-]+)\/confirm$/i);
+  if (orgConfirmMatch && method === 'POST') {
+    return handleConfirmOrganizationUser(request, env, userId, orgConfirmMatch[1], orgConfirmMatch[2]);
+  }
+
+  // GET /api/organizations/:orgId/users
+  const orgUsersMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/users$/i);
+  if (orgUsersMatch) {
+    if (method === 'GET') return handleGetOrganizationUsers(request, env, userId, orgUsersMatch[1]);
+    return errorResponse('Method not allowed', 405);
+  }
+
+  // GET /api/organizations/:id  (exact org record)
   const orgMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)$/i);
   if (orgMatch) {
     if (method === 'GET') return handleGetOrganization(request, env, userId, orgMatch[1]);
     return null;
   }
 
+  // Catch-all for other /api/organizations/ sub-paths
   if (path.startsWith('/api/organizations/')) {
     if (method === 'GET') {
       return jsonResponse({ data: [], object: 'list', continuationToken: null });

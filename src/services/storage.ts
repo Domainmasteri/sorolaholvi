@@ -159,6 +159,13 @@ import {
   createOrganizationWithOwner as createStoredOrganizationWithOwner,
   getOrganizationsByUserId as getStoredOrganizationsByUserId,
   getOrganizationByIdForUser as getStoredOrganizationByIdForUser,
+  type OrgUserDetails,
+  getOrgUsersByOrgId as getStoredOrgUsersByOrgId,
+  getOrgUserById as getStoredOrgUserById,
+  getOrgUserByOrgAndEmail as getStoredOrgUserByOrgAndEmail,
+  insertOrgUser as insertStoredOrgUser,
+  acceptOrgUserInvite as acceptStoredOrgUserInvite,
+  confirmOrgUser as confirmStoredOrgUser,
 } from './storage-organization-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -966,5 +973,29 @@ export class StorageService {
 
   async getOrganizationByIdForUser(organizationId: string, userId: string): Promise<{ org: Organization; orgUser: OrganizationUser } | null> {
     return getStoredOrganizationByIdForUser(this.db, organizationId, userId);
+  }
+
+  async getOrgUsersByOrgId(organizationId: string): Promise<OrgUserDetails[]> {
+    return getStoredOrgUsersByOrgId(this.db, organizationId);
+  }
+
+  async getOrgUserById(orgUserId: string): Promise<OrganizationUser | null> {
+    return getStoredOrgUserById(this.db, orgUserId);
+  }
+
+  async getOrgUserByOrgAndEmail(organizationId: string, email: string): Promise<OrganizationUser | null> {
+    return getStoredOrgUserByOrgAndEmail(this.db, organizationId, email);
+  }
+
+  async insertOrgUser(orgUser: OrganizationUser): Promise<void> {
+    await insertStoredOrgUser(this.db, orgUser);
+  }
+
+  async acceptOrgUserInvite(orgUserId: string, userId: string, updatedAt: string): Promise<void> {
+    await acceptStoredOrgUserInvite(this.db, orgUserId, userId, updatedAt);
+  }
+
+  async confirmOrgUser(orgUserId: string, key: string, updatedAt: string): Promise<void> {
+    await confirmStoredOrgUser(this.db, orgUserId, key, updatedAt);
   }
 }
