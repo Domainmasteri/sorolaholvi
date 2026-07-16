@@ -43,6 +43,43 @@ function organizationToResponse(org: Organization, orgUser: OrganizationUser): O
 }
 
 /**
+ * GET /api/organizations
+ *
+ * Returns all organizations the current user belongs to, formatted as a
+ * Bitwarden-compatible list response.
+ */
+export async function handleGetOrganizations(
+  _request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const memberships = await storage.getOrganizationsByUserId(userId);
+  const data = memberships.map(({ org, orgUser }) => organizationToResponse(org, orgUser));
+  return jsonResponse({ data, object: 'list', continuationToken: null });
+}
+
+/**
+ * GET /api/organizations/:id
+ *
+ * Returns a single organization by ID, but only if the current user is a
+ * member of that organization. Returns 404 otherwise.
+ */
+export async function handleGetOrganization(
+  _request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const membership = await storage.getOrganizationByIdForUser(organizationId, userId);
+  if (!membership) {
+    return errorResponse('Not found', 404);
+  }
+  return jsonResponse(organizationToResponse(membership.org, membership.orgUser));
+}
+
+/**
  * POST /api/organizations
  *
  * Creates a new organization and immediately adds the requesting user as the

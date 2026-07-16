@@ -157,6 +157,8 @@ import {
 } from './storage-account-passkey-repo';
 import {
   createOrganizationWithOwner as createStoredOrganizationWithOwner,
+  getOrganizationsByUserId as getStoredOrganizationsByUserId,
+  getOrganizationByIdForUser as getStoredOrganizationByIdForUser,
 } from './storage-organization-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -956,5 +958,13 @@ export class StorageService {
 
   async createOrganizationWithOwner(org: Organization, orgUser: OrganizationUser): Promise<void> {
     await createStoredOrganizationWithOwner(this.db, org, orgUser);
+  }
+
+  async getOrganizationsByUserId(userId: string): Promise<Array<{ org: Organization; orgUser: OrganizationUser }>> {
+    return getStoredOrganizationsByUserId(this.db, userId);
+  }
+
+  async getOrganizationByIdForUser(organizationId: string, userId: string): Promise<{ org: Organization; orgUser: OrganizationUser } | null> {
+    return getStoredOrganizationByIdForUser(this.db, organizationId, userId);
   }
 }

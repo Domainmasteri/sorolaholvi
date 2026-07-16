@@ -96,7 +96,7 @@ import {
   handleListPendingAuthRequests,
   handleUpdateAuthRequest,
 } from './handlers/auth-requests';
-import { handleCreateOrganization } from './handlers/organizations';
+import { handleCreateOrganization, handleGetOrganizations, handleGetOrganization } from './handlers/organizations';
 
 export async function handleAuthenticatedRoute(
   request: Request,
@@ -410,12 +410,21 @@ export async function handleAuthenticatedRoute(
     return null;
   }
 
-  if (path === '/api/organizations' || path.startsWith('/api/organizations/')) {
+  if (path === '/api/organizations') {
+    if (method === 'GET') return handleGetOrganizations(request, env, userId);
+    if (method === 'POST') return handleCreateOrganization(request, env, userId, currentUser);
+    return errorResponse('Method not allowed', 405);
+  }
+
+  const orgMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)$/i);
+  if (orgMatch) {
+    if (method === 'GET') return handleGetOrganization(request, env, userId, orgMatch[1]);
+    return null;
+  }
+
+  if (path.startsWith('/api/organizations/')) {
     if (method === 'GET') {
       return jsonResponse({ data: [], object: 'list', continuationToken: null });
-    }
-    if (method === 'POST' && path === '/api/organizations') {
-      return handleCreateOrganization(request, env, userId, currentUser);
     }
     return null;
   }
