@@ -1,4 +1,4 @@
-// Complete Finnish locale. Translate the values in this file to add a new language. Keep keys and placeholders unchanged.
+// Finnish locale. Keep keys and placeholders unchanged.
 const fi: Record<string, string> = {
   "nav_account_settings": "Tilin asetukset",
   "nav_admin_panel": "Hallintapaneeli",
@@ -1444,7 +1444,24 @@ const fi: Record<string, string> = {
   "txt_auth_request_approved": "Laitteen kirjautuminen hyväksytty",
   "txt_auth_request_denied": "Laitteen kirjautuminen hylätty",
   "txt_auth_request_missing_public_key": "Laitekirjautumispyynnöstä puuttuu julkinen avain",
-  "txt_ip_address": "IP-osoite"
+  "txt_ip_address": "IP-osoite",
+  "txt_server_error_not_found": "Ei löydy",
+  "txt_server_error_invalid_json": "Virheellinen JSON",
+  "txt_server_error_organization_name_required": "Organisaation nimi on pakollinen",
+  "txt_server_error_organization_key_required": "Organisaation avain on pakollinen",
+  "txt_server_error_no_permission_invite_members": "Sinulla ei ole oikeutta kutsua jäseniä",
+  "txt_server_error_at_least_one_email_required": "Vähintään yksi sähköpostiosoite on pakollinen",
+  "txt_server_error_invalid_email_in_list": "Virheellinen sähköpostiosoite listassa",
+  "txt_server_error_invite_wrong_email": "Tämä kutsu on tarkoitettu eri sähköpostiosoitteelle",
+  "txt_server_error_invite_no_longer_valid": "Kutsu ei ole enää voimassa",
+  "txt_server_error_no_permission_confirm_members": "Sinulla ei ole oikeutta vahvistaa jäseniä",
+  "txt_server_error_user_not_accepted_invite": "Käyttäjä ei ole hyväksynyt kutsua",
+  "txt_server_error_no_permission_create_collections": "Sinulla ei ole oikeutta luoda kokoelmia",
+  "txt_server_error_collection_name_required": "Kokoelman nimi on pakollinen",
+  "txt_server_error_no_permission_update_collections": "Sinulla ei ole oikeutta päivittää kokoelmia",
+  "txt_server_error_no_permission_delete_collections": "Sinulla ei ole oikeutta poistaa kokoelmia",
+  "txt_server_error_no_permission_manage_collection_access": "Sinulla ei ole oikeutta hallita kokoelman käyttöoikeuksia",
+  "txt_server_error_expected_array_of_user_grants": "Odotettiin taulukkoa käyttäjien käyttöoikeuksista"
 };
 
 export default fi;

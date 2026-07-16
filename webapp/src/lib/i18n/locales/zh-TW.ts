@@ -1,4 +1,4 @@
-// Complete Traditional Chinese locale generated from zh-CN with OpenCC. Keep keys and placeholders unchanged.
+// Traditional Chinese locale. Keep keys and placeholders unchanged.
 const zhTW: Record<string, string> = {
   "nav_account_settings": "賬戶設置",
   "nav_admin_panel": "用戶管理",
@@ -1444,7 +1444,24 @@ const zhTW: Record<string, string> = {
   "txt_auth_request_update_failed": "更新裝置登入請求失敗",
   "txt_auth_request_approved": "已批准裝置登入",
   "txt_auth_request_denied": "已拒絕裝置登入",
-  "txt_auth_request_missing_public_key": "裝置登入請求缺少公鑰"
+  "txt_auth_request_missing_public_key": "裝置登入請求缺少公鑰",
+  "txt_server_error_not_found": "未找到",
+  "txt_server_error_invalid_json": "無效的JSON",
+  "txt_server_error_organization_name_required": "組織名稱為必填項",
+  "txt_server_error_organization_key_required": "組織金鑰為必填項",
+  "txt_server_error_no_permission_invite_members": "您沒有權限邀請成員",
+  "txt_server_error_at_least_one_email_required": "至少需要一個電子郵件地址",
+  "txt_server_error_invalid_email_in_list": "列表中的電子郵件地址無效",
+  "txt_server_error_invite_wrong_email": "此邀請針對的是不同的電子郵件地址",
+  "txt_server_error_invite_no_longer_valid": "邀請已不再有效",
+  "txt_server_error_no_permission_confirm_members": "您沒有權限確認成員",
+  "txt_server_error_user_not_accepted_invite": "用戶尚未接受邀請",
+  "txt_server_error_no_permission_create_collections": "您沒有權限建立集合",
+  "txt_server_error_collection_name_required": "集合名稱為必填項",
+  "txt_server_error_no_permission_update_collections": "您沒有權限更新集合",
+  "txt_server_error_no_permission_delete_collections": "您沒有權限刪除集合",
+  "txt_server_error_no_permission_manage_collection_access": "您沒有權限管理集合存取權限",
+  "txt_server_error_expected_array_of_user_grants": "期望一個用戶授權陣列"
 };
 
 export default zhTW;

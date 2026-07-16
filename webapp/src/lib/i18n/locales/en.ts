@@ -1444,7 +1444,24 @@ const en: Record<string, string> = {
   "txt_auth_request_approved": "Device login approved",
   "txt_auth_request_denied": "Device login denied",
   "txt_auth_request_missing_public_key": "Device login request is missing a public key",
-  "txt_ip_address": "IP address"
+  "txt_ip_address": "IP address",
+  "txt_server_error_not_found": "Not found",
+  "txt_server_error_invalid_json": "Invalid JSON",
+  "txt_server_error_organization_name_required": "Organization name is required",
+  "txt_server_error_organization_key_required": "Organization key is required",
+  "txt_server_error_no_permission_invite_members": "You do not have permission to invite members",
+  "txt_server_error_at_least_one_email_required": "At least one email is required",
+  "txt_server_error_invalid_email_in_list": "Invalid email in list",
+  "txt_server_error_invite_wrong_email": "This invitation is for a different email address",
+  "txt_server_error_invite_no_longer_valid": "Invitation is no longer valid",
+  "txt_server_error_no_permission_confirm_members": "You do not have permission to confirm members",
+  "txt_server_error_user_not_accepted_invite": "User has not accepted the invitation",
+  "txt_server_error_no_permission_create_collections": "You do not have permission to create collections",
+  "txt_server_error_collection_name_required": "Collection name is required",
+  "txt_server_error_no_permission_update_collections": "You do not have permission to update collections",
+  "txt_server_error_no_permission_delete_collections": "You do not have permission to delete collections",
+  "txt_server_error_no_permission_manage_collection_access": "You do not have permission to manage collection access",
+  "txt_server_error_expected_array_of_user_grants": "Expected an array of user grants"
 };
 
 export default en;

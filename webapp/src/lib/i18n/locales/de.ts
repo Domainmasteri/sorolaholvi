@@ -1,4 +1,4 @@
-// Complete German locale. Translate the values in this file to add a new language. Keep keys and placeholders unchanged.
+// German locale. Keep keys and placeholders unchanged.
 const de: Record<string, string> = {
   "nav_account_settings": "Kontoeinstellungen",
   "nav_admin_panel": "Admin-Panel",
@@ -1444,7 +1444,24 @@ const de: Record<string, string> = {
   "txt_auth_request_approved": "Geräteanmeldung genehmigt",
   "txt_auth_request_denied": "Geräteanmeldung abgelehnt",
   "txt_auth_request_missing_public_key": "Geräteanmeldungsanfrage fehlt ein öffentlicher Schlüssel",
-  "txt_ip_address": "IP-Adresse"
+  "txt_ip_address": "IP-Adresse",
+  "txt_server_error_not_found": "Nicht gefunden",
+  "txt_server_error_invalid_json": "Ungültiges JSON",
+  "txt_server_error_organization_name_required": "Organisationsname ist erforderlich",
+  "txt_server_error_organization_key_required": "Organisationsschlüssel ist erforderlich",
+  "txt_server_error_no_permission_invite_members": "Sie haben keine Berechtigung, Mitglieder einzuladen",
+  "txt_server_error_at_least_one_email_required": "Mindestens eine E-Mail-Adresse ist erforderlich",
+  "txt_server_error_invalid_email_in_list": "Ungültige E-Mail-Adresse in der Liste",
+  "txt_server_error_invite_wrong_email": "Diese Einladung ist für eine andere E-Mail-Adresse",
+  "txt_server_error_invite_no_longer_valid": "Die Einladung ist nicht mehr gültig",
+  "txt_server_error_no_permission_confirm_members": "Sie haben keine Berechtigung, Mitglieder zu bestätigen",
+  "txt_server_error_user_not_accepted_invite": "Der Benutzer hat die Einladung nicht akzeptiert",
+  "txt_server_error_no_permission_create_collections": "Sie haben keine Berechtigung, Sammlungen zu erstellen",
+  "txt_server_error_collection_name_required": "Name der Sammlung ist erforderlich",
+  "txt_server_error_no_permission_update_collections": "Sie haben keine Berechtigung, Sammlungen zu aktualisieren",
+  "txt_server_error_no_permission_delete_collections": "Sie haben keine Berechtigung, Sammlungen zu löschen",
+  "txt_server_error_no_permission_manage_collection_access": "Sie haben keine Berechtigung, den Sammlungszugriff zu verwalten",
+  "txt_server_error_expected_array_of_user_grants": "Es wurde ein Array von Benutzerzugriffen erwartet"
 };
 
 export default de;

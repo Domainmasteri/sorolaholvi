@@ -1,4 +1,4 @@
-// Complete Italian locale. Translate the values in this file to add a new language. Keep keys and placeholders unchanged.
+// Italian locale. Keep keys and placeholders unchanged.
 const it: Record<string, string> = {
   "nav_account_settings": "Impostazioni Account",
   "nav_admin_panel": "Pannello di Amministrazione",
@@ -1444,7 +1444,24 @@ const it: Record<string, string> = {
   "txt_auth_request_approved": "Accesso dispositivo approvato",
   "txt_auth_request_denied": "Accesso dispositivo negato",
   "txt_auth_request_missing_public_key": "Manca una chiave pubblica nella richiesta di accesso del dispositivo",
-  "txt_ip_address": "Indirizzo IP"
+  "txt_ip_address": "Indirizzo IP",
+  "txt_server_error_not_found": "Non trovato",
+  "txt_server_error_invalid_json": "JSON non valido",
+  "txt_server_error_organization_name_required": "Il nome dell'organizzazione è obbligatorio",
+  "txt_server_error_organization_key_required": "La chiave dell'organizzazione è obbligatoria",
+  "txt_server_error_no_permission_invite_members": "Non hai il permesso di invitare membri",
+  "txt_server_error_at_least_one_email_required": "È richiesta almeno un'e-mail",
+  "txt_server_error_invalid_email_in_list": "E-mail non valida nell'elenco",
+  "txt_server_error_invite_wrong_email": "Questo invito è per un indirizzo e-mail diverso",
+  "txt_server_error_invite_no_longer_valid": "L'invito non è più valido",
+  "txt_server_error_no_permission_confirm_members": "Non hai il permesso di confermare i membri",
+  "txt_server_error_user_not_accepted_invite": "L'utente non ha accettato l'invito",
+  "txt_server_error_no_permission_create_collections": "Non hai il permesso di creare raccolte",
+  "txt_server_error_collection_name_required": "Il nome della raccolta è obbligatorio",
+  "txt_server_error_no_permission_update_collections": "Non hai il permesso di aggiornare le raccolte",
+  "txt_server_error_no_permission_delete_collections": "Non hai il permesso di eliminare le raccolte",
+  "txt_server_error_no_permission_manage_collection_access": "Non hai il permesso di gestire l'accesso alla raccolta",
+  "txt_server_error_expected_array_of_user_grants": "Era previsto un array di permessi utente"
 };
 
 export default it;
