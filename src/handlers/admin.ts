@@ -390,9 +390,6 @@ export async function handleAdminSetUserStatus(
   if (!target) {
     return errorResponse('User not found', 404);
   }
-  if (target.role === 'owner') {
-    return errorResponse('Owner accounts cannot be deleted', 403);
-  }
   if (target.role === 'owner' && actorUser.role !== 'owner') {
     return errorResponse('Only an owner can modify an owner account', 403);
   }
@@ -444,6 +441,9 @@ export async function handleAdminSetUserRole(
   const target = await storage.getUserById(targetUserId);
   if (!target) {
     return errorResponse('User not found', 404);
+  }
+  if (target.role === 'owner') {
+    return errorResponse('Owner accounts cannot be deleted', 403);
   }
 
   if (target.id === actorUser.id) {

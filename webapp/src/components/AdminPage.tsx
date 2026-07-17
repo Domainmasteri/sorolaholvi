@@ -45,7 +45,7 @@ export default function AdminPage(props: AdminPageProps) {
 
   const roleText = (role: string) => {
     const normalized = String(role || '').toLowerCase();
-    if (normalized === 'owner') return 'Owner';
+    if (normalized === 'owner') return t('txt_role_owner');
     if (normalized === 'admin') return t('txt_role_admin');
     if (normalized === 'user') return t('txt_role_user');
     return role || '-';
@@ -106,7 +106,7 @@ export default function AdminPage(props: AdminPageProps) {
         </div>
         <div className="stack">
           <label className="field">
-            <span>Registration Enabled</span>
+            <span>{t('txt_registration_enabled')}</span>
             <input
               type="checkbox"
               checked={registrationEnabled}
@@ -115,7 +115,7 @@ export default function AdminPage(props: AdminPageProps) {
             />
           </label>
           <label className="field">
-            <span>Allow User Email Changes</span>
+            <span>{t('txt_allow_user_email_changes')}</span>
             <input
               type="checkbox"
               checked={emailChangeEnabled}
@@ -124,7 +124,7 @@ export default function AdminPage(props: AdminPageProps) {
             />
           </label>
           <label className="field">
-            <span>Email Delivery Enabled</span>
+            <span>{t('txt_email_delivery_enabled')}</span>
             <input
               type="checkbox"
               checked={emailEnabled}
@@ -239,9 +239,9 @@ export default function AdminPage(props: AdminPageProps) {
                           void props.onSetUserRole(user.id, nextRole);
                         }}
                       >
-                        {actorRole === 'owner' && <option value="owner">Owner</option>}
-                        <option value="admin">Admin</option>
-                        <option value="user">User</option>
+                        {actorRole === 'owner' && <option value="owner">{t('txt_role_owner')}</option>}
+                        <option value="admin">{t('txt_role_admin')}</option>
+                        <option value="user">{t('txt_role_user')}</option>
                       </select>
                     )}
                     {canDeleteUser && (
