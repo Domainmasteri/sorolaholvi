@@ -443,7 +443,7 @@ export async function handleAdminSetUserRole(
     return errorResponse('User not found', 404);
   }
   if (target.role === 'owner') {
-    return errorResponse('Owner accounts cannot be deleted', 403);
+    return errorResponse('Owner role cannot be changed', 403);
   }
 
   if (target.id === actorUser.id) {

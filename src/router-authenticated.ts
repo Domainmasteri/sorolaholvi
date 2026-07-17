@@ -159,10 +159,10 @@ export async function handleAuthenticatedRoute(
       return unsupportedResponse('Email address changes are disabled by the administrator.');
     }
     const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
-    if (emailDeliveryEnabled) {
-      return unsupportedResponse('Email delivery is not supported by this server.');
+    if (!emailDeliveryEnabled) {
+      return unsupportedResponse('Email changes require a configured email delivery channel, which is currently disabled by the administrator.');
     }
-    return unsupportedResponse('Email changes require a configured email delivery channel, which is currently disabled by the administrator.');
+    return unsupportedResponse('Email delivery is not supported by this server.');
   }
 
   const emailTwoFactorPaths = new Set([
@@ -178,10 +178,10 @@ export async function handleAuthenticatedRoute(
   if (emailTwoFactorPaths.has(path) && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
     const storage = new StorageService(env.DB);
     const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
-    if (emailDeliveryEnabled) {
-      return unsupportedResponse('Email two-step login is not supported by this server.');
+    if (!emailDeliveryEnabled) {
+      return unsupportedResponse('Email delivery is disabled by the administrator.');
     }
-    return unsupportedResponse('Email delivery is disabled by the administrator.');
+    return unsupportedResponse('Email two-step login is not supported by this server.');
   }
 
   if (path === '/api/accounts/profile') {

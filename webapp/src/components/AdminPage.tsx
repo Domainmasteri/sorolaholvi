@@ -30,13 +30,6 @@ export default function AdminPage(props: AdminPageProps) {
   const [page, setPage] = useState(1);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const [emailChangeEnabled, setEmailChangeEnabled] = useState(true);
-  const [emailEnabled, setEmailEnabled] = useState(false);
-  const [fromEmail, setFromEmail] = useState('');
-  const [fromName, setFromName] = useState('');
-  const [smtpHost, setSmtpHost] = useState('');
-  const [smtpPort, setSmtpPort] = useState('');
-  const [smtpUsername, setSmtpUsername] = useState('');
-  const [smtpPassword, setSmtpPassword] = useState('');
   const pageSize = 20;
   const formatExpiresAt = (x?: string) => (x ? new Date(x).toLocaleString() : t('txt_dash'));
   const totalPages = Math.max(1, Math.ceil(props.invites.length / pageSize));
@@ -77,13 +70,6 @@ export default function AdminPage(props: AdminPageProps) {
     if (!props.settings) return;
     setRegistrationEnabled(props.settings.registrationEnabled !== false);
     setEmailChangeEnabled(props.settings.emailChangeEnabled !== false);
-    setEmailEnabled(!!props.settings.email?.enabled);
-    setFromEmail(props.settings.email?.fromEmail || '');
-    setFromName(props.settings.email?.fromName || '');
-    setSmtpHost(props.settings.email?.smtpHost || '');
-    setSmtpPort(props.settings.email?.smtpPort ? String(props.settings.email.smtpPort) : '');
-    setSmtpUsername(props.settings.email?.smtpUsername || '');
-    setSmtpPassword(props.settings.email?.smtpPassword || '');
   }, [props.settings]);
 
   return (
@@ -123,41 +109,6 @@ export default function AdminPage(props: AdminPageProps) {
               disabled={props.loading || props.settingsLoading}
             />
           </label>
-          <label className="field">
-            <span>{t('txt_email_delivery_enabled')}</span>
-            <input
-              type="checkbox"
-              checked={emailEnabled}
-              onChange={(e) => setEmailEnabled((e.currentTarget as HTMLInputElement).checked)}
-              disabled={props.loading || props.settingsLoading}
-            />
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <label className="field">
-              <span>From Email</span>
-              <input className="input" value={fromEmail} onInput={(e) => setFromEmail((e.currentTarget as HTMLInputElement).value)} />
-            </label>
-            <label className="field">
-              <span>From Name</span>
-              <input className="input" value={fromName} onInput={(e) => setFromName((e.currentTarget as HTMLInputElement).value)} />
-            </label>
-            <label className="field">
-              <span>SMTP host</span>
-              <input className="input" value={smtpHost} onInput={(e) => setSmtpHost((e.currentTarget as HTMLInputElement).value)} />
-            </label>
-            <label className="field">
-              <span>SMTP port</span>
-              <input className="input" type="number" value={smtpPort} onInput={(e) => setSmtpPort((e.currentTarget as HTMLInputElement).value)} />
-            </label>
-            <label className="field">
-              <span>SMTP username</span>
-              <input className="input" value={smtpUsername} onInput={(e) => setSmtpUsername((e.currentTarget as HTMLInputElement).value)} />
-            </label>
-            <label className="field">
-              <span>SMTP password</span>
-              <input className="input" type="password" value={smtpPassword} onInput={(e) => setSmtpPassword((e.currentTarget as HTMLInputElement).value)} />
-            </label>
-          </div>
           <div className="actions">
             <button
               type="button"
@@ -166,15 +117,6 @@ export default function AdminPage(props: AdminPageProps) {
               onClick={() => void props.onSaveSettings({
                 registrationEnabled,
                 emailChangeEnabled,
-                email: {
-                  enabled: emailEnabled,
-                  fromEmail,
-                  fromName,
-                  smtpHost,
-                  smtpPort: smtpPort.trim() ? Number(smtpPort) : null,
-                  smtpUsername,
-                  smtpPassword,
-                },
               })}
             >
               {t('txt_save')}

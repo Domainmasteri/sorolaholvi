@@ -522,10 +522,10 @@ export async function handlePublicRoute(
     if (blocked) return blocked;
     const storage = new StorageService(env.DB);
     const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
-    if (emailDeliveryEnabled) {
-      return unsupportedResponse('Email delivery is not supported by this server.');
+    if (!emailDeliveryEnabled) {
+      return unsupportedResponse('Email delivery is disabled by the administrator.');
     }
-    return unsupportedResponse('Email delivery is disabled by the administrator.');
+    return unsupportedResponse('Email delivery is not supported by this server.');
   }
 
   if (path === '/api/accounts/password-hint' && method === 'POST') {
