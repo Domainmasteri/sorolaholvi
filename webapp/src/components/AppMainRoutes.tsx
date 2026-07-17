@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'preact/compat';
 import { useEffect } from 'preact/hooks';
 import { Link, Route, Switch } from 'wouter';
-import { ArrowUpDown, Cloud, FileClock, Globe2, LogOut, Settings as SettingsIcon, Shield, ShieldUser } from 'lucide-preact';
+import { ArrowUpDown, Building2, Cloud, FileClock, Globe2, LogOut, Settings as SettingsIcon, Shield, ShieldUser } from 'lucide-preact';
 import type { ImportAttachmentFile, ImportResultSummary } from '@/components/ImportPage';
 import LoadingState from '@/components/LoadingState';
+import type { AuthedFetch } from '@/lib/api/shared';
 import type { AdminBackupImportResponse, AdminBackupRunResponse, AdminBackupSettings, RemoteBackupBrowserResponse } from '@/lib/api/backup';
 import type { AuditLogFilters } from '@/lib/api/admin';
 import type { CiphersImportPayload } from '@/lib/api/vault';
@@ -21,6 +22,7 @@ const AdminPage = lazy(() => import('@/components/AdminPage'));
 const LogCenterPage = lazy(() => import('@/components/LogCenterPage'));
 const BackupCenterPage = lazy(() => import('@/components/BackupCenterPage'));
 const ImportPage = lazy(() => import('@/components/ImportPage'));
+const OrganizationsPage = lazy(() => import('@/components/OrganizationsPage'));
 
 function RouteContentFallback() {
   return <LoadingState card lines={5} />;
@@ -34,6 +36,7 @@ function LegacyBackupRedirect(props: { onNavigate: (path: string) => void }) {
 }
 
 export interface AppMainRoutesProps {
+  authedFetch: AuthedFetch;
   profile: Profile | null;
   profileLoading: boolean;
   session: SessionState | null;
@@ -336,6 +339,10 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
                   <Globe2 size={18} />
                   <span>{t('nav_domain_rules')}</span>
                 </Link>
+                <Link href="/organizations" className="mobile-settings-link">
+                  <Building2 size={18} />
+                  <span>Organizations</span>
+                </Link>
               </div>
             </div>
             <div className="settings-home-section">
@@ -460,6 +467,25 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
               onToggleUserStatus={props.onToggleUserStatus}
               onDeleteUser={props.onDeleteUser}
               onDeleteInvite={props.onDeleteInvite}
+            />
+          </Suspense>
+        </div>
+      </Route>
+      <Route path="/organizations">
+        <div className="stack">
+          {props.mobileLayout && (
+            <div className="mobile-settings-subhead">
+              <button type="button" className="btn btn-secondary small mobile-settings-back" onClick={() => props.onNavigate(props.settingsHomeRoute)}>
+                <span className="btn-icon" aria-hidden="true">{"<"}</span>
+                {t('txt_back')}
+              </button>
+            </div>
+          )}
+          <Suspense fallback={<RouteContentFallback />}>
+            <OrganizationsPage
+              authedFetch={props.authedFetch}
+              profileEmail={props.profile?.email || props.session?.email || ''}
+              onNotify={props.onNotify}
             />
           </Suspense>
         </div>

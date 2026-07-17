@@ -409,6 +409,53 @@ export interface ListResponse<T> {
   continuationToken?: string | null;
 }
 
+export const ORGANIZATION_MEMBER_STATUS = {
+  REVOKED: -1,
+  INVITED: 0,
+  ACCEPTED: 1,
+  CONFIRMED: 2,
+} as const;
+
+export const ORGANIZATION_MEMBER_ROLE = {
+  OWNER: 0,
+  ADMIN: 1,
+  USER: 2,
+  MANAGER: 3,
+  CUSTOM: 4,
+} as const;
+
+export type OrganizationMemberStatus = typeof ORGANIZATION_MEMBER_STATUS[keyof typeof ORGANIZATION_MEMBER_STATUS];
+export type OrganizationMemberRole = typeof ORGANIZATION_MEMBER_ROLE[keyof typeof ORGANIZATION_MEMBER_ROLE];
+
+export interface Organization {
+  id: string;
+  name: string;
+  billingEmail?: string | null;
+  enabled?: boolean;
+  status?: OrganizationMemberStatus;
+  type?: OrganizationMemberRole;
+  key?: string | null;
+}
+
+export interface OrganizationUserDetails {
+  id: string;
+  userId: string | null;
+  name: string | null;
+  email: string;
+  status: OrganizationMemberStatus;
+  type: OrganizationMemberRole;
+  accessAll: boolean;
+}
+
+export interface OrganizationCollection {
+  id: string;
+  organizationId: string;
+  name: string;
+  externalId?: string | null;
+  readOnly?: boolean;
+  hidePasswords?: boolean;
+}
+
 export interface WebBootstrapResponse {
   defaultKdfIterations?: number;
   jwtUnsafeReason?: 'missing' | 'too_short' | null;
