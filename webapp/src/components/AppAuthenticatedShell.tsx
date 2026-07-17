@@ -1,4 +1,4 @@
-import { ArrowUpDown, Check, ChevronDown, Clock3, Cloud, FileClock, Folder as FolderIcon, KeyRound, Lock, LogOut, MonitorSmartphone, Send as SendIcon, Settings as SettingsIcon, ShieldUser, SlidersHorizontal, Users } from 'lucide-preact';
+import { ArrowUpDown, Building2, Check, ChevronDown, Clock3, Cloud, FileClock, Folder as FolderIcon, KeyRound, Lock, LogOut, MonitorSmartphone, Send as SendIcon, Settings as SettingsIcon, ShieldUser, SlidersHorizontal, Users } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Link } from 'wouter';
@@ -60,7 +60,8 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
   const settingsActive = props.location === '/settings' || props.location === props.settingsAccountRoute || props.location === '/settings/domain-rules' || deviceManagementActive;
   const flatSettingsActive = settingsActive && !deviceManagementActive;
   const dataActive = props.location === '/backup' || props.isImportRoute;
-  const managementActive = props.location === '/admin' || props.location === '/logs';
+  const organizationsActive = props.location === '/organizations';
+  const managementActive = props.location === '/admin' || props.location === '/logs' || organizationsActive;
   const [navLayoutMode, setNavLayoutMode] = useState<NavLayoutMode>(readNavLayoutMode);
   const [navLayoutPickerOpen, setNavLayoutPickerOpen] = useState(false);
   const navLayoutPickerRef = useRef<HTMLDivElement | null>(null);
@@ -180,6 +181,7 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
       {renderSideLink(DEVICE_MANAGEMENT_ROUTE, deviceManagementActive, <MonitorSmartphone size={16} />, t('nav_device_management'))}
       {isAdmin && renderSideLink('/backup', props.location === '/backup', <Cloud size={16} />, t('nav_backup_strategy'))}
       {renderSideLink(props.importRoute, props.isImportRoute, <ArrowUpDown size={16} />, t('nav_import_export'))}
+      {renderSideLink('/organizations', organizationsActive, <Building2 size={16} />, 'Organizations')}
       {isAdmin && renderSideLink('/admin', props.location === '/admin', <Users size={16} />, t('nav_admin_panel'))}
       {isAdmin && renderSideLink('/logs', props.location === '/logs', <FileClock size={16} />, t('nav_log_center'))}
     </>
@@ -225,6 +227,7 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
         <ShieldUser size={16} />,
         managementActive,
         <>
+          {renderSubLink('/organizations', organizationsActive, 'Organizations')}
           {isAdmin && renderSubLink('/admin', props.location === '/admin', t('nav_admin_panel'))}
           {isAdmin && renderSubLink('/logs', props.location === '/logs', t('nav_log_center'))}
         </>

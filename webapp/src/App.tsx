@@ -112,6 +112,7 @@ const APP_ROUTE_PATHS = [
   '/vault',
   '/vault/totp',
   '/sends',
+  '/organizations',
   '/admin',
   '/logs',
   LEGACY_DEVICE_MANAGEMENT_ROUTE,
@@ -1909,6 +1910,7 @@ export default function App() {
   const currentPageTitle = (() => {
     if (location === '/vault/totp') return t('txt_verification_code');
     if (location === '/sends') return t('nav_sends');
+    if (location === '/organizations') return 'Organizations';
     if (location === '/admin') return t('nav_admin_panel');
     if (location === '/logs') return t('nav_log_center');
     if (location === LEGACY_DEVICE_MANAGEMENT_ROUTE || location === DEVICE_MANAGEMENT_ROUTE) return t('nav_device_management');
@@ -1959,6 +1961,7 @@ export default function App() {
   }, [phase, mobileLayout, location, navigate]);
 
   const mainRoutesProps = {
+    authedFetch,
     profile,
     profileLoading: profileQuery.isFetching && !profile,
     session,

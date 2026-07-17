@@ -409,6 +409,38 @@ export interface ListResponse<T> {
   continuationToken?: string | null;
 }
 
+export type OrganizationMemberStatus = -1 | 0 | 1 | 2;
+export type OrganizationMemberRole = 0 | 1 | 2 | 3 | 4;
+
+export interface Organization {
+  id: string;
+  name: string;
+  billingEmail?: string | null;
+  enabled?: boolean;
+  status?: OrganizationMemberStatus;
+  type?: OrganizationMemberRole;
+  key?: string | null;
+}
+
+export interface OrganizationUserDetails {
+  id: string;
+  userId: string | null;
+  name: string | null;
+  email: string;
+  status: OrganizationMemberStatus;
+  type: OrganizationMemberRole;
+  accessAll: boolean;
+}
+
+export interface OrganizationCollection {
+  id: string;
+  organizationId: string;
+  name: string;
+  externalId?: string | null;
+  readOnly?: boolean;
+  hidePasswords?: boolean;
+}
+
 export interface WebBootstrapResponse {
   defaultKdfIterations?: number;
   jwtUnsafeReason?: 'missing' | 'too_short' | null;
