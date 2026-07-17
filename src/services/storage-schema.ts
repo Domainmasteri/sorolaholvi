@@ -223,18 +223,22 @@ async function executeSchemaStatement(db: D1Database, statement: string): Promis
   }
 }
 
-async function ensureAdminUserExists(db: D1Database): Promise<void> {
-  const admin = await db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").first<{ id: string }>();
-  if (admin?.id) return;
+async function ensureOwnerUserExists(db: D1Database): Promise<void> {
+  const owner = await db.prepare("SELECT id FROM users WHERE role = 'owner' LIMIT 1").first<{ id: string }>();
+  if (owner?.id) return;
 
-  const firstUser = await db
+  const adminCandidate = await db
+    .prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1")
+    .first<{ id: string }>();
+  const fallback = await db
     .prepare('SELECT id FROM users ORDER BY created_at ASC LIMIT 1')
     .first<{ id: string }>();
-  if (!firstUser?.id) return;
+  const candidateId = adminCandidate?.id || fallback?.id;
+  if (!candidateId) return;
 
   await db
-    .prepare("UPDATE users SET role = 'admin', updated_at = ? WHERE id = ?")
-    .bind(new Date().toISOString(), firstUser.id)
+    .prepare("UPDATE users SET role = 'owner', updated_at = ? WHERE id = ?")
+    .bind(new Date().toISOString(), candidateId)
     .run();
 }
 
@@ -244,5 +248,5 @@ export async function ensureStorageSchema(db: D1Database): Promise<void> {
   for (const stmt of SCHEMA_STATEMENTS) {
     await executeSchemaStatement(db, stmt);
   }
-  await ensureAdminUserExists(db);
+  await ensureOwnerUserExists(db);
 }

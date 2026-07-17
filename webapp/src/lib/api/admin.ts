@@ -1,4 +1,14 @@
-import type { AdminInvite, AdminUser, AuditLogCategory, AuditLogEntry, AuditLogLevel, AuditLogListResult, AuditLogSettings, ListResponse } from '../types';
+import type {
+  AdminInvite,
+  AdminSystemSettings,
+  AdminUser,
+  AuditLogCategory,
+  AuditLogEntry,
+  AuditLogLevel,
+  AuditLogListResult,
+  AuditLogSettings,
+  ListResponse,
+} from '../types';
 import { parseJson, type AuthedFetch } from './shared';
 
 export async function listAdminUsers(authedFetch: AuthedFetch): Promise<AdminUser[]> {
@@ -50,6 +60,19 @@ export async function setUserStatus(
     body: JSON.stringify({ status }),
   });
   if (!resp.ok) throw new Error('Update user status failed');
+}
+
+export async function setUserRole(
+  authedFetch: AuthedFetch,
+  userId: string,
+  role: 'owner' | 'admin' | 'user'
+): Promise<void> {
+  const resp = await authedFetch(`/api/admin/users/${encodeURIComponent(userId)}/role`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  });
+  if (!resp.ok) throw new Error('Update user role failed');
 }
 
 export async function deleteUser(authedFetch: AuthedFetch, userId: string): Promise<void> {
@@ -118,4 +141,23 @@ export async function clearAuditLogs(authedFetch: AuthedFetch): Promise<number> 
   if (!resp.ok) throw new Error('Failed to clear audit logs');
   const body = await parseJson<{ deleted?: number }>(resp);
   return Number(body?.deleted || 0);
+}
+
+export async function getAdminSettings(authedFetch: AuthedFetch): Promise<AdminSystemSettings> {
+  const resp = await authedFetch('/api/admin/settings');
+  if (!resp.ok) throw new Error('Failed to load admin settings');
+  return (await parseJson<AdminSystemSettings>(resp)) as AdminSystemSettings;
+}
+
+export async function saveAdminSettings(
+  authedFetch: AuthedFetch,
+  settings: Partial<AdminSystemSettings>
+): Promise<AdminSystemSettings> {
+  const resp = await authedFetch('/api/admin/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  if (!resp.ok) throw new Error('Failed to save admin settings');
+  return (await parseJson<AdminSystemSettings>(resp)) as AdminSystemSettings;
 }

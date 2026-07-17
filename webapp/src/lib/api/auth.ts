@@ -53,6 +53,16 @@ type RefreshResult = RefreshFailure | RefreshSuccess;
 
 const pendingRefreshes = new Map<string, Promise<RefreshResult>>();
 
+function normalizeProfileRole(role: unknown): 'owner' | 'admin' | 'user' {
+  if (role === 'owner' || role === 'admin') return role;
+  return 'user';
+}
+
+function isPrivilegedRole(role: unknown): boolean {
+  const normalized = normalizeProfileRole(role);
+  return normalized === 'owner' || normalized === 'admin';
+}
+
 function randomHex(length: number): string {
   const bytes = crypto.getRandomValues(new Uint8Array(Math.max(1, Math.ceil(length / 2))));
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, length);
@@ -167,12 +177,12 @@ export function saveProfileSnapshot(profile: Profile | null): void {
       if (
         existing
         && existing.email === nextSnapshot?.email
-        && existing.role === 'admin'
-        && nextSnapshot?.role !== 'admin'
+        && isPrivilegedRole(existing.role)
+        && !isPrivilegedRole(nextSnapshot?.role)
       ) {
         localStorage.setItem(PROFILE_SNAPSHOT_KEY, JSON.stringify({
           ...nextSnapshot,
-          role: 'admin',
+          role: normalizeProfileRole(existing.role),
         }));
         return;
       }
@@ -193,7 +203,7 @@ export function stripProfileSecrets(profile: Profile | null): Profile | null {
     id: String(profile.id || ''),
     email: String(profile.email || ''),
     name: String(profile.name || ''),
-    role: profile.role === 'admin' ? 'admin' : 'user',
+    role: normalizeProfileRole(profile.role),
     masterPasswordHint: profile.masterPasswordHint ?? null,
     publicKey: profile.publicKey ?? null,
     key: '',

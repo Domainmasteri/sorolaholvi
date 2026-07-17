@@ -9,7 +9,7 @@ import type { AdminBackupImportResponse, AdminBackupRunResponse, AdminBackupSett
 import type { AuditLogFilters } from '@/lib/api/admin';
 import type { CiphersImportPayload } from '@/lib/api/vault';
 import { t } from '@/lib/i18n';
-import type { AccountPasskeyCredential, AdminInvite, AdminUser, AuditLogListResult, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, TwoFactorPasskeySettings, VaultDraft, YubiKeyOtpSettings } from '@/lib/types';
+import type { AccountPasskeyCredential, AdminInvite, AdminSystemSettings, AdminUser, AuditLogListResult, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, TwoFactorPasskeySettings, VaultDraft, YubiKeyOtpSettings } from '@/lib/types';
 import type { ExportRequest } from '@/lib/export-formats';
 
 const VaultPage = lazy(() => import('@/components/VaultPage'));
@@ -55,7 +55,9 @@ export interface AppMainRoutesProps {
   sendsLoading: boolean;
   users: AdminUser[];
   invites: AdminInvite[];
+  adminSettings?: AdminSystemSettings | null;
   adminLoading: boolean;
+  adminSettingsLoading?: boolean;
   adminError: string;
   totpEnabled: boolean;
   yubikeyEnabled: boolean;
@@ -157,8 +159,10 @@ export interface AppMainRoutesProps {
   onDeleteInvalidInvites: () => Promise<void>;
   onDeleteAllInvites: () => Promise<void>;
   onToggleUserStatus: (userId: string, status: 'active' | 'banned') => Promise<void>;
+  onSetUserRole: (userId: string, role: 'owner' | 'admin' | 'user') => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onDeleteInvite: (code: string) => Promise<void>;
+  onSaveAdminSettings?: (settings: Partial<AdminSystemSettings>) => Promise<void>;
   onLoadAuditLogs: (filters: AuditLogFilters) => Promise<AuditLogListResult>;
   onLoadAuditLogSettings: () => Promise<AuditLogSettings>;
   onSaveAuditLogSettings: (settings: AuditLogSettings) => Promise<AuditLogSettings>;
@@ -180,7 +184,8 @@ export interface AppMainRoutesProps {
 export default function AppMainRoutes(props: AppMainRoutesProps) {
   const importRoutePaths = [props.importRoute, '/tools/import', '/tools/import-export', '/tools/import-data', '/import', '/import-export'] as const;
   const deviceManagementRoutePaths = ['/security/devices', '/settings/security/device-management'] as const;
-  const isAdmin = String(props.profile?.role || '').toLowerCase() === 'admin';
+  const profileRole = String(props.profile?.role || '').toLowerCase();
+  const isAdmin = profileRole === 'owner' || profileRole === 'admin';
   const importPageContent = (
     <Suspense fallback={<RouteContentFallback />}>
       <ImportPage
@@ -456,17 +461,22 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
           <Suspense fallback={<RouteContentFallback />}>
             <AdminPage
               currentUserId={props.profile?.id || ''}
+              currentUserRole={props.profile?.role || 'user'}
               users={props.users}
               invites={props.invites}
+              settings={props.adminSettings || null}
               loading={props.adminLoading}
+              settingsLoading={!!props.adminSettingsLoading}
               error={props.adminError}
               onRefresh={props.onRefreshAdmin}
               onCreateInvite={props.onCreateInvite}
               onDeleteInvalidInvites={props.onDeleteInvalidInvites}
               onDeleteAllInvites={props.onDeleteAllInvites}
               onToggleUserStatus={props.onToggleUserStatus}
+              onSetUserRole={props.onSetUserRole}
               onDeleteUser={props.onDeleteUser}
               onDeleteInvite={props.onDeleteInvite}
+              onSaveSettings={props.onSaveAdminSettings || (async () => {})}
             />
           </Suspense>
         </div>

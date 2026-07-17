@@ -1,8 +1,9 @@
 import { useMemo } from 'preact/hooks';
-import { createInvite, deleteAllInvites, deleteInvalidInvites, deleteInvite, deleteUser, setUserStatus } from '@/lib/api/admin';
+import { createInvite, deleteAllInvites, deleteInvalidInvites, deleteInvite, deleteUser, saveAdminSettings, setUserRole, setUserStatus } from '@/lib/api/admin';
 import { t } from '@/lib/i18n';
 import type { AppConfirmState } from '@/components/AppGlobalOverlays';
 import type { AuthedFetch } from '@/lib/api/shared';
+import type { AdminSystemSettings } from '@/lib/types';
 
 type Notify = (type: 'success' | 'error' | 'warning', text: string) => void;
 
@@ -12,15 +13,16 @@ interface UseAdminActionsOptions {
   onSetConfirm: (next: AppConfirmState | null) => void;
   refetchUsers: () => Promise<unknown>;
   refetchInvites: () => Promise<unknown>;
+  refetchSettings: () => Promise<unknown>;
 }
 
 export default function useAdminActions(options: UseAdminActionsOptions) {
-  const { authedFetch, onNotify, onSetConfirm, refetchUsers, refetchInvites } = options;
+  const { authedFetch, onNotify, onSetConfirm, refetchUsers, refetchInvites, refetchSettings } = options;
 
   return useMemo(
     () => ({
       refreshAdmin() {
-        void Promise.all([refetchUsers(), refetchInvites()]).catch((error) => {
+        void Promise.all([refetchUsers(), refetchInvites(), refetchSettings()]).catch((error) => {
           onNotify('error', error instanceof Error ? error.message : t('txt_load_admin_data_failed'));
         });
       },
@@ -38,6 +40,16 @@ export default function useAdminActions(options: UseAdminActionsOptions) {
       async toggleUserStatus(userId: string, status: 'active' | 'banned') {
         try {
           await setUserStatus(authedFetch, userId, status === 'active' ? 'banned' : 'active');
+          await refetchUsers();
+          onNotify('success', t('txt_user_status_updated'));
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_update_user_status_failed'));
+        }
+      },
+
+      async updateUserRole(userId: string, role: 'owner' | 'admin' | 'user') {
+        try {
+          await setUserRole(authedFetch, userId, role);
           await refetchUsers();
           onNotify('success', t('txt_user_status_updated'));
         } catch (error) {
@@ -124,7 +136,19 @@ export default function useAdminActions(options: UseAdminActionsOptions) {
           },
         });
       },
+
+      async saveSystemSettings(settings: Partial<AdminSystemSettings>) {
+        try {
+          const saved = await saveAdminSettings(authedFetch, settings);
+          await refetchSettings();
+          onNotify('success', t('txt_log_settings_saved'));
+          return saved;
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_log_settings_save_failed'));
+          throw error;
+        }
+      },
     }),
-    [authedFetch, onNotify, onSetConfirm, refetchInvites, refetchUsers]
+    [authedFetch, onNotify, onSetConfirm, refetchInvites, refetchSettings, refetchUsers]
   );
 }

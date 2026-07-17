@@ -52,6 +52,7 @@ export type JwtUnsafeReason = 'missing' | 'too_short';
 export interface BootstrapAppResult {
   defaultKdfIterations: number;
   registrationInviteRequired?: boolean;
+  registrationEnabled?: boolean;
   websiteIconsEnabled: boolean;
   jwtWarning: { reason: JwtUnsafeReason; minLength: number } | null;
   session: SessionState | null;
@@ -63,6 +64,7 @@ export interface BootstrapAppResult {
 export interface InitialAppBootstrapState {
   defaultKdfIterations: number;
   registrationInviteRequired?: boolean;
+  registrationEnabled?: boolean;
   websiteIconsEnabled: boolean;
   jwtWarning: { reason: JwtUnsafeReason; minLength: number } | null;
   session: SessionState | null;
@@ -232,10 +234,12 @@ function readWindowBootstrap(): WebBootstrapResponse {
   return raw && typeof raw === 'object' ? raw : {};
 }
 
-function normalizeBootstrapResponse(boot: WebBootstrapResponse): Pick<InitialAppBootstrapState, 'defaultKdfIterations' | 'registrationInviteRequired' | 'websiteIconsEnabled' | 'jwtWarning'> {
+function normalizeBootstrapResponse(boot: WebBootstrapResponse): Pick<InitialAppBootstrapState, 'defaultKdfIterations' | 'registrationInviteRequired' | 'registrationEnabled' | 'websiteIconsEnabled' | 'jwtWarning'> {
   const defaultKdfIterations = Number(boot.defaultKdfIterations || 600000);
   const registrationInviteRequired =
     typeof boot.registrationInviteRequired === 'boolean' ? boot.registrationInviteRequired : undefined;
+  const registrationEnabled =
+    typeof boot.registrationEnabled === 'boolean' ? boot.registrationEnabled : undefined;
   const websiteIconsEnabled = boot.websiteIconsEnabled !== false;
   const jwtUnsafeReason = boot.jwtUnsafeReason || null;
   const jwtWarning = jwtUnsafeReason
@@ -248,6 +252,7 @@ function normalizeBootstrapResponse(boot: WebBootstrapResponse): Pick<InitialApp
   return {
     defaultKdfIterations,
     registrationInviteRequired,
+    registrationEnabled,
     websiteIconsEnabled,
     jwtWarning,
   };
@@ -295,7 +300,7 @@ function buildTransientProfile(token: TokenSuccess, email: string, fallbackProfi
     name: String(claims.name || normalizedEmail || ''),
     key: String(token.Key || ''),
     privateKey: token.PrivateKey ?? null,
-    role: fallbackProfile?.role === 'admin' ? 'admin' : 'user',
+    role: fallbackProfile?.role === 'owner' || fallbackProfile?.role === 'admin' ? fallbackProfile.role : 'user',
     premium: !!claims.premium,
     accountKeys,
     masterPasswordHint: fallbackProfile?.masterPasswordHint ?? null,
@@ -304,12 +309,17 @@ function buildTransientProfile(token: TokenSuccess, email: string, fallbackProfi
   };
 }
 
-function resolveUnauthenticatedPhase(registrationInviteRequired: boolean | undefined, fallback: AppPhase): AppPhase {
+function resolveUnauthenticatedPhase(
+  registrationEnabled: boolean | undefined,
+  registrationInviteRequired: boolean | undefined,
+  fallback: AppPhase
+): AppPhase {
+  if (registrationEnabled === false) return 'login';
   return registrationInviteRequired === false ? 'register' : fallback;
 }
 
 export function readInitialAppBootstrapState(): InitialAppBootstrapState {
-  const { defaultKdfIterations, registrationInviteRequired, websiteIconsEnabled, jwtWarning } = normalizeBootstrapResponse(readWindowBootstrap());
+  const { defaultKdfIterations, registrationInviteRequired, registrationEnabled, websiteIconsEnabled, jwtWarning } = normalizeBootstrapResponse(readWindowBootstrap());
   setWebsiteIconsEnabled(websiteIconsEnabled);
   const session = loadSession();
   const hasInviteCode = !!readInviteCodeFromUrl();
@@ -318,10 +328,11 @@ export function readInitialAppBootstrapState(): InitialAppBootstrapState {
   return {
     defaultKdfIterations,
     registrationInviteRequired,
+    registrationEnabled,
     websiteIconsEnabled,
     jwtWarning,
     session,
-    phase: jwtWarning ? 'login' : session ? 'locked' : resolveUnauthenticatedPhase(registrationInviteRequired, unauthenticatedPhase),
+    phase: jwtWarning ? 'login' : session ? 'locked' : resolveUnauthenticatedPhase(registrationEnabled, registrationInviteRequired, unauthenticatedPhase),
   };
 }
 
@@ -330,6 +341,7 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
   const normalizedBoot = normalizeBootstrapResponse(remoteBoot);
   const defaultKdfIterations = normalizedBoot.defaultKdfIterations || initial.defaultKdfIterations;
   const registrationInviteRequired = normalizedBoot.registrationInviteRequired ?? initial.registrationInviteRequired;
+  const registrationEnabled = normalizedBoot.registrationEnabled ?? initial.registrationEnabled;
   const websiteIconsEnabled = normalizedBoot.websiteIconsEnabled !== false;
   setWebsiteIconsEnabled(websiteIconsEnabled);
   const jwtWarning = normalizedBoot.jwtWarning ?? initial.jwtWarning;
@@ -338,6 +350,7 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
     return {
       defaultKdfIterations,
       registrationInviteRequired,
+      registrationEnabled,
       websiteIconsEnabled,
       jwtWarning,
       session: null,
@@ -351,11 +364,12 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
     return {
       defaultKdfIterations,
       registrationInviteRequired,
+      registrationEnabled,
       websiteIconsEnabled,
       jwtWarning: null,
       session: null,
       profile: null,
-      phase: resolveUnauthenticatedPhase(registrationInviteRequired, initial.phase),
+      phase: resolveUnauthenticatedPhase(registrationEnabled, registrationInviteRequired, initial.phase),
     };
   }
 
@@ -364,6 +378,7 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
     return {
       defaultKdfIterations,
       registrationInviteRequired,
+      registrationEnabled,
       websiteIconsEnabled,
       jwtWarning: null,
       session: loaded,
@@ -376,6 +391,7 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
   return {
     defaultKdfIterations,
     registrationInviteRequired,
+    registrationEnabled,
     websiteIconsEnabled,
     jwtWarning: null,
     session: loaded,
@@ -749,4 +765,3 @@ export async function performUnlock(
     message: translateServerError(tokenError.error_description || tokenError.error, t('txt_unlock_failed')),
   };
 }
-

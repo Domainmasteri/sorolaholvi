@@ -122,7 +122,7 @@ function getEligiblePortableUsers(users: Pick<User, 'id' | 'publicKey' | 'role' 
   return users
     .filter(
       (user) =>
-        user.role === 'admin' &&
+        (user.role === 'owner' || user.role === 'admin') &&
         user.status === 'active' &&
         typeof user.publicKey === 'string' &&
         user.publicKey.trim().length > 0

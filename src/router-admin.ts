@@ -7,10 +7,13 @@ import {
   handleAdminDeleteInvite,
   handleAdminSetUserStatus,
   handleAdminDeleteUser,
+  handleAdminSetUserRole,
   handleAdminListAuditLogs,
   handleAdminGetAuditLogSettings,
   handleAdminUpdateAuditLogSettings,
   handleAdminClearAuditLogs,
+  handleAdminGetSystemSettings,
+  handleAdminUpdateSystemSettings,
 } from './handlers/admin';
 import { handleAdminBackupRoute } from './router-admin-backup';
 import { errorResponse } from './utils/response';
@@ -20,15 +23,16 @@ function isKnownAdminPath(path: string): boolean {
     path === '/api/admin/users' ||
     path === '/api/admin/logs' ||
     path === '/api/admin/logs/settings' ||
+    path === '/api/admin/settings' ||
     path === '/api/admin/invites' ||
     path.startsWith('/api/admin/backup') ||
     /^\/api\/admin\/invites\/[^/]+$/i.test(path) ||
-    /^\/api\/admin\/users\/[a-f0-9-]+(?:\/status)?$/i.test(path)
+    /^\/api\/admin\/users\/[a-f0-9-]+(?:\/status|\/role)?$/i.test(path)
   );
 }
 
 function isActiveAdmin(user: User): boolean {
-  return user.role === 'admin' && user.status === 'active';
+  return (user.role === 'owner' || user.role === 'admin') && user.status === 'active';
 }
 
 export async function handleAdminRoute(
@@ -63,6 +67,12 @@ export async function handleAdminRoute(
     return null;
   }
 
+  if (path === '/api/admin/settings') {
+    if (method === 'GET') return handleAdminGetSystemSettings(request, env, actorUser);
+    if (method === 'PUT' || method === 'POST') return handleAdminUpdateSystemSettings(request, env, actorUser);
+    return null;
+  }
+
   const adminBackupResponse = await handleAdminBackupRoute(request, env, actorUser, path, method);
   if (adminBackupResponse) return adminBackupResponse;
 
@@ -82,6 +92,11 @@ export async function handleAdminRoute(
   const adminUserStatusMatch = path.match(/^\/api\/admin\/users\/([a-f0-9-]+)\/status$/i);
   if (adminUserStatusMatch && (method === 'PUT' || method === 'POST')) {
     return handleAdminSetUserStatus(request, env, actorUser, adminUserStatusMatch[1]);
+  }
+
+  const adminUserRoleMatch = path.match(/^\/api\/admin\/users\/([a-f0-9-]+)\/role$/i);
+  if (adminUserRoleMatch && (method === 'PUT' || method === 'POST')) {
+    return handleAdminSetUserRole(request, env, actorUser, adminUserRoleMatch[1]);
   }
 
   const adminUserDeleteMatch = path.match(/^\/api\/admin\/users\/([a-f0-9-]+)$/i);

@@ -22,7 +22,7 @@ export interface Env {
   'globalSettings__yubico__validationUrls'?: string;
 }
 
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'owner' | 'admin' | 'user';
 export type UserStatus = 'active' | 'banned';
 
 // Organization user role (matches Bitwarden integer constants)

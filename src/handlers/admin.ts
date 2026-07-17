@@ -4,9 +4,15 @@ import { StorageService } from '../services/storage';
 import { jsonResponse, errorResponse } from '../utils/response';
 import { deleteBlobObject, getAttachmentObjectKey, getSendFileObjectKey } from '../services/blob-store';
 import { auditRequestMetadata, getAuditLogSettings, normalizeAuditLogSettings, saveAuditLogSettings, writeAuditEvent } from '../services/audit-events';
+import { getSystemSettings, saveSystemSettings, type SystemSettingsUpdate } from '../utils/system-settings';
 
 function isAdmin(user: User): boolean {
-  return user.role === 'admin' && user.status === 'active';
+  return (user.role === 'owner' || user.role === 'admin') && user.status === 'active';
+}
+
+function normalizeRole(role: unknown): 'owner' | 'admin' | 'user' | null {
+  if (role === 'owner' || role === 'admin' || role === 'user') return role;
+  return null;
 }
 
 function randomHex(bytes: number): string {
@@ -193,6 +199,52 @@ export async function handleAdminClearAuditLogs(
   return jsonResponse({ object: 'auditLogClear', deleted });
 }
 
+// GET /api/admin/settings
+export async function handleAdminGetSystemSettings(
+  request: Request,
+  env: Env,
+  actorUser: User
+): Promise<Response> {
+  void request;
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+  const storage = new StorageService(env.DB);
+  return jsonResponse({
+    object: 'adminSettings',
+    ...await getSystemSettings(storage),
+  });
+}
+
+// PUT /api/admin/settings
+export async function handleAdminUpdateSystemSettings(
+  request: Request,
+  env: Env,
+  actorUser: User
+): Promise<Response> {
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+  let body: SystemSettingsUpdate;
+  try {
+    body = await request.json() as SystemSettingsUpdate;
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const storage = new StorageService(env.DB);
+  const settings = await saveSystemSettings(storage, body || {});
+  await writeAuditLog(storage, actorUser.id, 'admin.settings.update', 'systemSettings', null, {
+    registrationEnabled: settings.registrationEnabled,
+    emailChangeEnabled: settings.emailChangeEnabled,
+    emailEnabled: settings.email.enabled,
+  }, request);
+  return jsonResponse({
+    object: 'adminSettings',
+    ...settings,
+  });
+}
+
 // POST /api/admin/invites
 export async function handleAdminCreateInvite(
   request: Request,
@@ -338,6 +390,9 @@ export async function handleAdminSetUserStatus(
   if (!target) {
     return errorResponse('User not found', 404);
   }
+  if (target.role === 'owner' && actorUser.role !== 'owner') {
+    return errorResponse('Only an owner can modify an owner account', 403);
+  }
 
   target.status = nextStatus;
   target.updatedAt = new Date().toISOString();
@@ -348,6 +403,71 @@ export async function handleAdminSetUserStatus(
   AuthService.invalidateUserCache(target.id);
   await writeAuditLog(storage, actorUser.id, 'admin.user.status', 'user', target.id, {
     status: nextStatus,
+  }, request);
+
+  return jsonResponse({
+    id: target.id,
+    email: target.email,
+    role: target.role,
+    status: target.status,
+    object: 'user',
+  });
+}
+
+// PUT /api/admin/users/:id/role
+export async function handleAdminSetUserRole(
+  request: Request,
+  env: Env,
+  actorUser: User,
+  targetUserId: string
+): Promise<Response> {
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+
+  let body: { role?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const nextRole = normalizeRole(body.role);
+  if (!nextRole) {
+    return errorResponse('role must be owner, admin or user', 400);
+  }
+
+  const storage = new StorageService(env.DB);
+  const target = await storage.getUserById(targetUserId);
+  if (!target) {
+    return errorResponse('User not found', 404);
+  }
+  if (target.role === 'owner') {
+    return errorResponse('Owner role cannot be changed', 403);
+  }
+
+  if (target.id === actorUser.id) {
+    return errorResponse('You cannot change your own role', 400);
+  }
+  if (nextRole === 'owner' && actorUser.role !== 'owner') {
+    return errorResponse('Only an owner can assign owner role', 403);
+  }
+  if (target.role === nextRole) {
+    return jsonResponse({
+      id: target.id,
+      email: target.email,
+      role: target.role,
+      status: target.status,
+      object: 'user',
+    });
+  }
+
+  target.role = nextRole;
+  target.updatedAt = new Date().toISOString();
+  await storage.saveUser(target);
+  AuthService.invalidateUserCache(target.id);
+  await writeAuditLog(storage, actorUser.id, 'admin.user.role', 'user', target.id, {
+    role: nextRole,
   }, request);
 
   return jsonResponse({

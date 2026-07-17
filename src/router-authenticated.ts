@@ -104,6 +104,7 @@ import {
   handleInviteOrganizationUser,
   handleAcceptOrganizationUserInvite,
   handleConfirmOrganizationUser,
+  handleDeleteOrganization,
 } from './handlers/organizations';
 import {
   handleCreateCollection,
@@ -112,6 +113,8 @@ import {
   handleDeleteCollection,
   handleUpdateCollectionUsers,
 } from './handlers/collections';
+import { getSystemSettings, isEmailDeliveryEnabled } from './utils/system-settings';
+import { StorageService } from './services/storage';
 
 export async function handleAuthenticatedRoute(
   request: Request,
@@ -150,6 +153,15 @@ export async function handleAuthenticatedRoute(
     '/accounts/verify-otp',
   ]);
   if (mailBackedAccountPaths.has(path) && (method === 'POST' || method === 'PUT')) {
+    const storage = new StorageService(env.DB);
+    const settings = await getSystemSettings(storage);
+    if (!settings.emailChangeEnabled) {
+      return unsupportedResponse('Email address changes are disabled by the administrator.');
+    }
+    const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
+    if (!emailDeliveryEnabled) {
+      return unsupportedResponse('Email changes require a configured email delivery channel, which is currently disabled by the administrator.');
+    }
     return unsupportedResponse('Email delivery is not supported by this server.');
   }
 
@@ -164,6 +176,11 @@ export async function handleAuthenticatedRoute(
     '/two-factor/email',
   ]);
   if (emailTwoFactorPaths.has(path) && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
+    const storage = new StorageService(env.DB);
+    const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
+    if (!emailDeliveryEnabled) {
+      return unsupportedResponse('Email delivery is disabled by the administrator.');
+    }
     return unsupportedResponse('Email two-step login is not supported by this server.');
   }
 
@@ -483,6 +500,7 @@ export async function handleAuthenticatedRoute(
   const orgMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)$/i);
   if (orgMatch) {
     if (method === 'GET') return handleGetOrganization(request, env, userId, orgMatch[1]);
+    if (method === 'DELETE') return handleDeleteOrganization(request, env, userId, orgMatch[1]);
     return null;
   }
 

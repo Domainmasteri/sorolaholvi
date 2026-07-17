@@ -8,7 +8,7 @@ export async function silentlyRepairBackupSettingsIfNeeded(
   activeProfile: Profile,
   verification?: { masterPasswordHash?: string | null; userVerificationToken?: string | null } | null
 ): Promise<void> {
-  if (activeProfile.role !== 'admin') return;
+  if (activeProfile.role !== 'owner' && activeProfile.role !== 'admin') return;
   if (!activeSession.accessToken || !activeSession.symEncKey || !activeSession.symMacKey) return;
 
   const tempFetch = createAuthedFetch(() => activeSession, () => {});

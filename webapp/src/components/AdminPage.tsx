@@ -1,28 +1,35 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { ChevronLeft, ChevronRight, Clipboard, Plus, RefreshCw, Trash2, UserCheck, UserX } from 'lucide-preact';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import LoadingState from '@/components/LoadingState';
-import type { AdminInvite, AdminUser } from '@/lib/types';
+import type { AdminInvite, AdminSystemSettings, AdminUser } from '@/lib/types';
 import { t } from '@/lib/i18n';
 
 interface AdminPageProps {
   currentUserId: string;
+  currentUserRole: string;
   users: AdminUser[];
   invites: AdminInvite[];
+  settings: AdminSystemSettings | null;
   loading: boolean;
+  settingsLoading: boolean;
   error: string;
   onRefresh: () => void;
   onCreateInvite: (hours: number) => Promise<void>;
   onDeleteInvalidInvites: () => Promise<void>;
   onDeleteAllInvites: () => Promise<void>;
   onToggleUserStatus: (userId: string, currentStatus: 'active' | 'banned') => Promise<void>;
+  onSetUserRole: (userId: string, role: 'owner' | 'admin' | 'user') => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onDeleteInvite: (code: string) => Promise<void>;
+  onSaveSettings: (settings: Partial<AdminSystemSettings>) => Promise<void>;
 }
 
 export default function AdminPage(props: AdminPageProps) {
   const [inviteHours, setInviteHours] = useState(168);
   const [page, setPage] = useState(1);
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [emailChangeEnabled, setEmailChangeEnabled] = useState(true);
   const pageSize = 20;
   const formatExpiresAt = (x?: string) => (x ? new Date(x).toLocaleString() : t('txt_dash'));
   const totalPages = Math.max(1, Math.ceil(props.invites.length / pageSize));
@@ -31,10 +38,25 @@ export default function AdminPage(props: AdminPageProps) {
 
   const roleText = (role: string) => {
     const normalized = String(role || '').toLowerCase();
+    if (normalized === 'owner') return t('txt_role_owner');
     if (normalized === 'admin') return t('txt_role_admin');
     if (normalized === 'user') return t('txt_role_user');
     return role || '-';
   };
+
+  const normalizeUserRole = (role: string): 'owner' | 'admin' | 'user' | null => {
+    const normalized = String(role || '').toLowerCase();
+    if (normalized === 'owner' || normalized === 'admin' || normalized === 'user') return normalized;
+    return null;
+  };
+
+  const canManageUserRole = (actor: 'owner' | 'admin' | 'user' | null, userId: string, currentUserId: string, targetRole: 'owner' | 'admin' | 'user' | null): boolean => {
+    if (actor === 'owner') return userId !== currentUserId;
+    if (actor === 'admin') return userId !== currentUserId && targetRole !== 'owner';
+    return false;
+  };
+
+  const actorRole = normalizeUserRole(props.currentUserRole);
 
   const statusText = (status: string) => {
     const normalized = String(status || '').toLowerCase();
@@ -50,6 +72,12 @@ export default function AdminPage(props: AdminPageProps) {
     return null;
   };
 
+  useEffect(() => {
+    if (!props.settings) return;
+    setRegistrationEnabled(props.settings.registrationEnabled !== false);
+    setEmailChangeEnabled(props.settings.emailChangeEnabled !== false);
+  }, [props.settings]);
+
   return (
     <div className="stack">
       {!!props.error && (
@@ -61,6 +89,47 @@ export default function AdminPage(props: AdminPageProps) {
           </button>
         </div>
       )}
+      <section className="card">
+        <div className="section-head">
+          <h3>{t('txt_settings')}</h3>
+          <button type="button" className="btn btn-secondary small" disabled={props.loading || props.settingsLoading} onClick={props.onRefresh}>
+            <RefreshCw size={14} className="btn-icon" /> {t('txt_refresh')}
+          </button>
+        </div>
+        <div className="stack">
+          <label className="field">
+            <span>{t('txt_registration_enabled')}</span>
+            <input
+              type="checkbox"
+              checked={registrationEnabled}
+              onChange={(e) => setRegistrationEnabled((e.currentTarget as HTMLInputElement).checked)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>{t('txt_allow_user_email_changes')}</span>
+            <input
+              type="checkbox"
+              checked={emailChangeEnabled}
+              onChange={(e) => setEmailChangeEnabled((e.currentTarget as HTMLInputElement).checked)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <div className="actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={props.loading || props.settingsLoading}
+              onClick={() => void props.onSaveSettings({
+                registrationEnabled,
+                emailChangeEnabled,
+              })}
+            >
+              {t('txt_save')}
+            </button>
+          </div>
+        </div>
+      </section>
       <section className="card">
         <div className="section-head">
           <h3>{t('txt_users')}</h3>
@@ -81,6 +150,9 @@ export default function AdminPage(props: AdminPageProps) {
           <tbody>
             {props.users.map((user) => {
               const toggleableStatus = normalizeToggleableStatus(user.status);
+              const userRole = normalizeUserRole(user.role);
+              const canManageRole = canManageUserRole(actorRole, user.id, props.currentUserId, userRole);
+              const canDeleteUser = user.id !== props.currentUserId && userRole !== 'owner';
               return (
                 <tr key={user.id}>
                 <td data-label={t('txt_email')}>{user.email}</td>
@@ -92,7 +164,7 @@ export default function AdminPage(props: AdminPageProps) {
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      disabled={user.id === props.currentUserId || !toggleableStatus}
+                      disabled={user.id === props.currentUserId || !toggleableStatus || (actorRole !== 'owner' && userRole === 'owner')}
                       onClick={() => {
                         if (!toggleableStatus) return;
                         void props.onToggleUserStatus(user.id, toggleableStatus);
@@ -101,7 +173,22 @@ export default function AdminPage(props: AdminPageProps) {
                       {user.status === 'active' ? <UserX size={14} className="btn-icon" /> : <UserCheck size={14} className="btn-icon" />}
                       {user.status === 'active' ? t('txt_ban') : t('txt_unban')}
                     </button>
-                    {user.role !== 'admin' && (
+                    {canManageRole && userRole && (
+                      <select
+                        className="input"
+                        value={userRole}
+                        onChange={(e) => {
+                          const nextRole = normalizeUserRole((e.currentTarget as HTMLSelectElement).value);
+                          if (!nextRole || nextRole === userRole) return;
+                          void props.onSetUserRole(user.id, nextRole);
+                        }}
+                      >
+                        {actorRole === 'owner' && <option value="owner">{t('txt_role_owner')}</option>}
+                        <option value="admin">{t('txt_role_admin')}</option>
+                        <option value="user">{t('txt_role_user')}</option>
+                      </select>
+                    )}
+                    {canDeleteUser && (
                       <button type="button" className="btn btn-danger" onClick={() => void props.onDeleteUser(user.id)}>
                         <Trash2 size={14} className="btn-icon" />
                         {t('txt_delete')}

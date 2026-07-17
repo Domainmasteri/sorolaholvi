@@ -44,7 +44,8 @@ function readNavLayoutMode(): NavLayoutMode {
 }
 
 function isAdminProfile(profile: Profile | null): boolean {
-  return String(profile?.role || '').toLowerCase() === 'admin';
+  const role = String(profile?.role || '').toLowerCase();
+  return role === 'owner' || role === 'admin';
 }
 
 const DEVICE_MANAGEMENT_ROUTE = '/settings/security/device-management';

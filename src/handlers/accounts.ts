@@ -12,6 +12,7 @@ import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { buildAccountKeys } from '../utils/user-decryption';
 import { buildProfileResponse } from '../utils/profile-response';
 import { isYubiKeyEnabled, isYubiKeyPublicId, requestYubicoApiCredentials, verifyYubicoOtp, yubicoCredentialsFromEnv, yubiKeyPublicIdFromOtp, type YubicoApiCredentials } from '../utils/yubico-otp';
+import { isRegistrationEnabled } from '../utils/system-settings';
 
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
 const TWO_FACTOR_PROVIDER_YUBIKEY = 3;
@@ -265,7 +266,7 @@ function keysResponse(user: User): Record<string, unknown> {
 }
 
 // POST /api/accounts/register
-// - First user becomes admin.
+// - First user becomes owner.
 // - Any subsequent user must provide a valid inviteCode.
 export async function handleRegister(request: Request, env: Env): Promise<Response> {
   const storage = new StorageService(env.DB);
@@ -368,7 +369,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
 
   const userCount = await storage.getUserCount();
   if (userCount === 0) {
-    user.role = 'admin';
+    user.role = 'owner';
     const created = await storage.createFirstUser(user);
     if (!created) {
       return errorResponse('Registration is temporarily unavailable, retry once', 409);
@@ -376,7 +377,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     await storage.setRegistered();
     await writeAuditEvent(storage, {
       actorUserId: user.id,
-      action: 'user.register.first_admin',
+      action: 'user.register.first_owner',
       targetType: 'user',
       targetId: user.id,
       category: 'security',
@@ -384,6 +385,11 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
       metadata: { email: user.email, ...auditRequestMetadata(request) },
     });
     return jsonResponse({ success: true, role: user.role }, 200);
+  }
+
+  const registrationEnabled = await isRegistrationEnabled(storage);
+  if (!registrationEnabled) {
+    return errorResponse('Registration is disabled by the administrator', 403);
   }
 
   if (!inviteCode) {
