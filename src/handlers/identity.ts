@@ -26,13 +26,19 @@ import { isAuthRequestExpired } from '../services/storage-auth-request-repo';
 import { createPasskeyUserVerificationToken } from '../utils/user-verification-token';
 import { constantTimeEquals, verifyApiKey } from '../utils/api-key';
 import { isYubiKeyEnabled, userYubiKeyPublicIds, verifyYubicoOtp, yubicoCredentialsFromEnv, yubiKeyPublicIdFromOtp, type YubicoApiCredentials } from '../utils/yubico-otp';
+import { getEmailSettingsForDelivery } from '../utils/system-settings';
+import { sendSmtpEmail } from '../services/email';
+import type { EmailOtp } from '../services/storage-email-otp-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
+const TWO_FACTOR_PROVIDER_EMAIL = 1;
 const TWO_FACTOR_PROVIDER_YUBIKEY = 3;
 const TWO_FACTOR_PROVIDER_REMEMBER = 5;
 const TWO_FACTOR_PROVIDER_WEBAUTHN = 7;
 const TWO_FACTOR_PROVIDER_RECOVERY_CODE = 8;
+const EMAIL_OTP_TTL_MS = 10 * 60 * 1000;
+const EMAIL_OTP_DIGITS = 6;
 const WEB_REFRESH_COOKIE = 'nodewarden_web_refresh';
 const YUBICO_CLIENT_ID_CONFIG_KEY = 'globalSettings__yubico__clientId';
 const YUBICO_KEY_CONFIG_KEY = 'globalSettings__yubico__key';
@@ -41,6 +47,47 @@ const YUBICO_KEY_CONFIG_KEY = 'globalSettings__yubico__key';
 // compatible with older/local provider values.
 const TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE = '-1';
 const TWO_FACTOR_PROVIDER_RECOVERY_CODE_ANDROID_REQUEST = 100;
+
+function generateEmailOtpCode(): string {
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return String(buf[0] % Math.pow(10, EMAIL_OTP_DIGITS)).padStart(EMAIL_OTP_DIGITS, '0');
+}
+
+async function sendLoginEmailOtp(
+  env: Env,
+  storage: StorageService,
+  user: User
+): Promise<void> {
+  const emailSettings = await getEmailSettingsForDelivery(storage);
+  if (!emailSettings) return;
+  const nowMs = Date.now();
+  // Remove old codes for this user/purpose
+  await storage.deleteEmailOtpsByUser(user.id, 'two_factor_login');
+  const code = generateEmailOtpCode();
+  const otp: EmailOtp = {
+    id: generateUUID(),
+    userId: user.id,
+    email: user.email,
+    code,
+    purpose: 'two_factor_login',
+    expiresAt: nowMs + EMAIL_OTP_TTL_MS,
+    createdAt: nowMs,
+  };
+  await storage.saveEmailOtp(otp);
+
+  const appName = emailSettings.fromName || 'NodeWarden';
+  const html = `<p>Your two-step login verification code for <b>${appName}</b> is:</p>
+<p style="font-size:28px;letter-spacing:4px;font-weight:bold;">${code}</p>
+<p>This code expires in 10 minutes. Do not share it with anyone.</p>`;
+  const text = `Your two-step login verification code for ${appName} is: ${code}\nExpires in 10 minutes.`;
+
+  try {
+    await sendSmtpEmail(emailSettings, user.email, `Your login code for ${appName}`, html, text);
+  } catch (err) {
+    console.error('Failed to send login email OTP:', err);
+  }
+}
 
 function resolveTotpSecret(userSecret: string | null): string | null {
   if (userSecret && isTotpEnabled(userSecret)) {
@@ -245,6 +292,7 @@ async function twoFactorRequiredResponse(
   // parse the challenge if an unknown recovery provider key such as "8" is included.
   const providers: string[] = [];
   let webAuthnOptions: Record<string, unknown> | null = null;
+  if (user && user.emailTwoFactorEnabled) providers.push(String(TWO_FACTOR_PROVIDER_EMAIL));
   if (!user || resolveTotpSecret(user.totpSecret)) providers.push(String(TWO_FACTOR_PROVIDER_AUTHENTICATOR));
   if (user && isYubiKeyEnabled(user)) providers.push(String(TWO_FACTOR_PROVIDER_YUBIKEY));
   if (user) {
@@ -444,7 +492,8 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const effectiveTotpSecret = resolveTotpSecret(user.totpSecret);
     const effectiveYubiKeyPublicIds = userYubiKeyPublicIds(user);
     const effectiveWebAuthnCredentials = await storage.getAccountPasskeyCredentialsByUserId(user.id, 'twoFactor');
-    if (effectiveTotpSecret || effectiveYubiKeyPublicIds.length > 0 || effectiveWebAuthnCredentials.length > 0) {
+    const emailTwoFactorEnabled = user.emailTwoFactorEnabled;
+    if (emailTwoFactorEnabled || effectiveTotpSecret || effectiveYubiKeyPublicIds.length > 0 || effectiveWebAuthnCredentials.length > 0) {
       const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
       const normalizedTwoFactorToken = String(twoFactorToken ?? '').trim();
       let rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
@@ -454,6 +503,10 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       // Upstream-compatible behavior: if 2FA is required and either provider or token is missing,
       // respond with a 2FA challenge payload.
       if (!hasProvider || !hasToken) {
+        // Auto-send email OTP when email 2FA is the only or preferred method
+        if (emailTwoFactorEnabled) {
+          void sendLoginEmailOtp(env, storage, user);
+        }
         return await twoFactorRequiredResponse(request, env, storage, user, 'Two factor required.');
       }
 
@@ -471,6 +524,16 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
         if (!passedByRememberToken) {
           return await twoFactorRequiredResponse(request, env, storage, user, 'Two factor required.');
         }
+      } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_EMAIL)) {
+        if (!emailTwoFactorEnabled) {
+          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
+        }
+        const nowMs = Date.now();
+        const storedOtp = await storage.getActiveEmailOtpByUserAndPurpose(user.id, 'two_factor_login', nowMs);
+        if (!storedOtp || storedOtp.code !== normalizedTwoFactorToken) {
+          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
+        }
+        await storage.deleteEmailOtp(storedOtp.id);
       } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)) {
         if (!effectiveTotpSecret) {
           return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);

@@ -12,12 +12,18 @@ import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { buildAccountKeys } from '../utils/user-decryption';
 import { buildProfileResponse } from '../utils/profile-response';
 import { isYubiKeyEnabled, isYubiKeyPublicId, requestYubicoApiCredentials, verifyYubicoOtp, yubicoCredentialsFromEnv, yubiKeyPublicIdFromOtp, type YubicoApiCredentials } from '../utils/yubico-otp';
-import { isRegistrationEnabled } from '../utils/system-settings';
+import { getEmailSettingsForDelivery, isRegistrationEnabled, getSystemSettings } from '../utils/system-settings';
+import { sendSmtpEmail } from '../services/email';
+import type { EmailOtp } from '../services/storage-email-otp-repo';
 
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
+const TWO_FACTOR_PROVIDER_EMAIL = 1;
 const TWO_FACTOR_PROVIDER_YUBIKEY = 3;
 const TWO_FACTOR_PROVIDER_WEBAUTHN = 7;
 const TOTP_USER_VERIFICATION_TOKEN_TTL_MS = 10 * 60 * 1000;
+const EMAIL_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const EMAIL_OTP_DIGITS = 6;
+const REGISTRATION_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const TOTP_BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const YUBICO_CLIENT_ID_CONFIG_KEY = 'globalSettings__yubico__clientId';
 const YUBICO_KEY_CONFIG_KEY = 'globalSettings__yubico__key';
@@ -356,6 +362,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     verifyDevices: false, // new-device verification requires email delivery (not available)
     totpSecret: null,
     totpRecoveryCode: null,
+    emailTwoFactorEnabled: false,
     yubikeyKey1: null,
     yubikeyKey2: null,
     yubikeyKey3: null,
@@ -390,6 +397,15 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   const registrationEnabled = await isRegistrationEnabled(storage);
   if (!registrationEnabled) {
     return errorResponse('Registration is disabled by the administrator', 403);
+  }
+
+  // When email confirmation is required, redirect to the new registration flow
+  const settings = await getSystemSettings(storage);
+  if (settings.requireEmailConfirmation && settings.email.enabled) {
+    return errorResponse(
+      'Email verification is required for registration. Please use the email verification flow.',
+      403
+    );
   }
 
   if (!inviteCode) {
@@ -838,6 +854,7 @@ export async function handleGetTwoFactorProviders(request: Request, env: Env, us
   if (!user) return errorResponse('User not found', 404);
 
   const data = [];
+  if (user.emailTwoFactorEnabled) data.push(twoFactorProviderResponse(TWO_FACTOR_PROVIDER_EMAIL, true));
   if (isTotpEnabled(user.totpSecret)) data.push(twoFactorProviderResponse(TWO_FACTOR_PROVIDER_AUTHENTICATOR, true));
   if (isYubiKeyEnabled(user)) data.push(twoFactorProviderResponse(TWO_FACTOR_PROVIDER_YUBIKEY, true));
   const webAuthnCredentials = await storage.getAccountPasskeyCredentialsByUserId(user.id, 'twoFactor');
@@ -1144,7 +1161,7 @@ export async function handleDisableTwoFactorProvider(request: Request, env: Env,
 
   const typeRaw = body.type ?? body.Type ?? TWO_FACTOR_PROVIDER_AUTHENTICATOR;
   const type = typeof typeRaw === 'number' ? typeRaw : Number.parseInt(String(typeRaw), 10);
-  if (![TWO_FACTOR_PROVIDER_AUTHENTICATOR, TWO_FACTOR_PROVIDER_YUBIKEY, TWO_FACTOR_PROVIDER_WEBAUTHN].includes(type)) {
+  if (![TWO_FACTOR_PROVIDER_EMAIL, TWO_FACTOR_PROVIDER_AUTHENTICATOR, TWO_FACTOR_PROVIDER_YUBIKEY, TWO_FACTOR_PROVIDER_WEBAUTHN].includes(type)) {
     return errorResponse('Two-factor provider is not supported by this server.', 400);
   }
 
@@ -1152,7 +1169,10 @@ export async function handleDisableTwoFactorProvider(request: Request, env: Env,
   const verified = await verifyUserSecret(auth, user, secret);
   if (!verified) return errorResponse('User verification failed.', 400);
 
-  if (type === TWO_FACTOR_PROVIDER_AUTHENTICATOR) {
+  if (type === TWO_FACTOR_PROVIDER_EMAIL) {
+    user.emailTwoFactorEnabled = false;
+    await storage.deleteEmailOtpsByUser(user.id, 'two_factor_login');
+  } else if (type === TWO_FACTOR_PROVIDER_AUTHENTICATOR) {
     user.totpSecret = null;
   } else if (type === TWO_FACTOR_PROVIDER_YUBIKEY) {
     user.yubikeyKey1 = null;
@@ -1173,7 +1193,9 @@ export async function handleDisableTwoFactorProvider(request: Request, env: Env,
   AuthService.invalidateUserCache(user.id);
   await writeAuditEvent(storage, {
     actorUserId: user.id,
-    action: type === TWO_FACTOR_PROVIDER_AUTHENTICATOR
+    action: type === TWO_FACTOR_PROVIDER_EMAIL
+      ? 'account.email_2fa.disable'
+      : type === TWO_FACTOR_PROVIDER_AUTHENTICATOR
       ? 'account.totp.disable'
       : type === TWO_FACTOR_PROVIDER_YUBIKEY
         ? 'account.yubikey.disable'
@@ -1535,4 +1557,491 @@ function randomStringAlphanum(length: number): string {
   }
 
   return result;
+}
+
+// --- Email 2FA helpers ---
+
+function generateEmailOtpCode(): string {
+  // 6-digit numeric OTP
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return String(buf[0] % 1_000_000).padStart(EMAIL_OTP_DIGITS, '0');
+}
+
+function maskEmail(email: string): string {
+  const atIdx = email.indexOf('@');
+  if (atIdx <= 0) return '***';
+  const local = email.slice(0, atIdx);
+  const domain = email.slice(atIdx);
+  if (local.length <= 2) return local[0] + '***' + domain;
+  return local[0] + '***' + local[local.length - 1] + domain;
+}
+
+async function sendEmailOtpCode(
+  storage: StorageService,
+  env: Env,
+  user: User,
+  origin: string
+): Promise<{ sent: boolean; error?: string }> {
+  const emailSettings = await getEmailSettingsForDelivery(storage);
+  if (!emailSettings) return { sent: false, error: 'Email delivery is not configured' };
+
+  const nowMs = Date.now();
+  // Clean up old codes first
+  await storage.deleteEmailOtpsByUser(user.id, 'two_factor_login');
+
+  const code = generateEmailOtpCode();
+  const otp: EmailOtp = {
+    id: generateUUID(),
+    userId: user.id,
+    email: user.email,
+    code,
+    purpose: 'two_factor_login',
+    expiresAt: nowMs + EMAIL_OTP_TTL_MS,
+    createdAt: nowMs,
+  };
+  await storage.saveEmailOtp(otp);
+
+  const appName = emailSettings.fromName || 'NodeWarden';
+  const html = `<p>Your two-step login verification code for <b>${appName}</b> is:</p>
+<p style="font-size:28px;letter-spacing:4px;font-weight:bold;">${code}</p>
+<p>This code expires in 10 minutes. Do not share it with anyone.</p>`;
+  const text = `Your two-step login verification code for ${appName} is: ${code}\nThis code expires in 10 minutes.`;
+
+  try {
+    await sendSmtpEmail(emailSettings, user.email, `Your login code for ${appName}`, html, text);
+    return { sent: true };
+  } catch (err) {
+    console.error('Failed to send email OTP:', err);
+    return { sent: false, error: 'Failed to send email' };
+  }
+}
+
+// GET /api/two-factor/get-email
+export async function handleGetEmailTwoFactor(request: Request, env: Env, userId: string): Promise<Response> {
+  void request;
+  const storage = new StorageService(env.DB);
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  return jsonResponse({
+    Enabled: user.emailTwoFactorEnabled,
+    Email: maskEmail(user.email),
+    Object: 'twoFactorEmail',
+  });
+}
+
+// POST /api/two-factor/send-email  (authenticated, resend/send code for setup)
+export async function handleSendEmailTwoFactorCode(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const settings = await getSystemSettings(storage);
+  if (!settings.emailTwoFactorEnabled) {
+    return errorResponse('Email two-factor authentication is not enabled by the administrator.', 400);
+  }
+  if (!settings.email.enabled) {
+    return errorResponse('Email delivery is disabled by the administrator.', 400);
+  }
+
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  const origin = new URL(request.url).origin;
+  const result = await sendEmailOtpCode(storage, env, user, origin);
+  if (!result.sent) {
+    return errorResponse(result.error || 'Failed to send verification email', 500);
+  }
+
+  return jsonResponse({
+    Sent: true,
+    Email: maskEmail(user.email),
+    Object: 'twoFactorEmail',
+  });
+}
+
+// POST /api/two-factor/send-email-login (public — resend code during login)
+export async function handleSendEmailLoginCode(request: Request, env: Env): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const settings = await getSystemSettings(storage);
+  if (!settings.emailTwoFactorEnabled || !settings.email.enabled) {
+    return errorResponse('Email two-factor authentication is not available.', 400);
+  }
+
+  let body: { email?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const email = (body.email || '').toLowerCase().trim();
+  if (!email) return errorResponse('Email is required', 400);
+
+  const user = await storage.getUser(email);
+  if (!user || !user.emailTwoFactorEnabled) {
+    // Return OK even if user not found (avoid user enumeration)
+    return new Response(null, { status: 204 });
+  }
+
+  const origin = new URL(request.url).origin;
+  void sendEmailOtpCode(storage, env, user, origin); // fire-and-forget, don't block
+
+  return new Response(null, { status: 204 });
+}
+
+// PUT /api/two-factor/email  (enable email 2FA)
+export async function handleEnableEmailTwoFactor(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const auth = new AuthService(env);
+  const settings = await getSystemSettings(storage);
+
+  if (!settings.emailTwoFactorEnabled) {
+    return errorResponse('Email two-factor authentication is not enabled by the administrator.', 400);
+  }
+  if (!settings.email.enabled) {
+    return errorResponse('Email delivery is disabled by the administrator.', 400);
+  }
+
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const secret = readBodyString(body, ['masterPasswordHash', 'MasterPasswordHash', 'otp', 'OTP', 'secret', 'Secret']);
+  const verified = await verifyUserSecret(auth, user, secret);
+  if (!verified) return errorResponse('User verification failed.', 400);
+
+  const token = readBodyString(body, ['token', 'Token', 'code', 'Code']) || '';
+
+  if (!user.emailTwoFactorEnabled) {
+    // Enabling: verify the OTP code first
+    if (!token) {
+      // Just requesting the code; send it and return status
+      const origin = new URL(request.url).origin;
+      const result = await sendEmailOtpCode(storage, env, user, origin);
+      if (!result.sent) {
+        return errorResponse(result.error || 'Failed to send verification email', 500);
+      }
+      return jsonResponse({
+        Enabled: false,
+        Email: maskEmail(user.email),
+        Object: 'twoFactorEmail',
+      });
+    }
+
+    // Verify the OTP
+    const nowMs = Date.now();
+    const storedOtp = await storage.getActiveEmailOtpByUserAndPurpose(user.id, 'two_factor_login', nowMs);
+    if (!storedOtp || storedOtp.code !== token.trim()) {
+      return errorResponse('Invalid or expired verification code.', 400);
+    }
+    await storage.deleteEmailOtp(storedOtp.id);
+
+    user.emailTwoFactorEnabled = true;
+    user.updatedAt = new Date().toISOString();
+    if (!user.totpRecoveryCode) {
+      user.totpRecoveryCode = createRecoveryCode();
+    }
+    await storage.saveUser(user);
+    AuthService.invalidateUserCache(user.id);
+    await writeAuditEvent(storage, {
+      actorUserId: user.id,
+      action: 'account.email_2fa.enable',
+      category: 'security',
+      level: 'security',
+      targetType: 'user',
+      targetId: user.id,
+      metadata: auditRequestMetadata(request),
+    });
+  }
+
+  return jsonResponse({
+    Enabled: user.emailTwoFactorEnabled,
+    Email: maskEmail(user.email),
+    Object: 'twoFactorEmail',
+  });
+}
+
+// --- Registration email verification ---
+
+function buildVerificationEmailHtml(appName: string, verifyUrl: string, code: string): string {
+  return `<p>Welcome to <b>${appName}</b>!</p>
+<p>Click the link below to verify your email address and complete registration:</p>
+<p><a href="${verifyUrl}" style="font-size:16px;">Verify Email Address</a></p>
+<p>Or enter this code manually:</p>
+<p style="font-size:24px;letter-spacing:4px;font-weight:bold;">${code}</p>
+<p>This link expires in 30 minutes.</p>`;
+}
+
+function buildVerificationEmailText(appName: string, verifyUrl: string, code: string): string {
+  return `Welcome to ${appName}!\n\nVerify your email:\n${verifyUrl}\n\nOr enter code: ${code}\n\nExpires in 30 minutes.`;
+}
+
+// POST /identity/accounts/register/send-verification-email
+export async function handleSendRegistrationVerificationEmail(request: Request, env: Env): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const settings = await getSystemSettings(storage);
+
+  const emailSettings = await getEmailSettingsForDelivery(storage);
+  if (!emailSettings) {
+    return errorResponse('Email delivery is not configured.', 400);
+  }
+
+  let body: { email?: string; name?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const email = (body.email || '').toLowerCase().trim();
+  if (!email || !email.includes('@')) {
+    return errorResponse('A valid email address is required.', 400);
+  }
+
+  // Clean up any existing pending tokens for this email
+  await storage.deleteEmailOtpsByEmail(email, 'registration_verify');
+
+  const nowMs = Date.now();
+  const code = generateEmailOtpCode();
+  const tokenId = generateUUID();
+
+  const otp: EmailOtp = {
+    id: tokenId,
+    userId: null,
+    email,
+    code,
+    purpose: 'registration_verify',
+    expiresAt: nowMs + REGISTRATION_TOKEN_TTL_MS,
+    createdAt: nowMs,
+  };
+  await storage.saveEmailOtp(otp);
+
+  const origin = new URL(request.url).origin;
+  const appName = emailSettings.fromName || 'NodeWarden';
+  const verifyUrl = `${origin}/?email_token=${encodeURIComponent(tokenId)}&email=${encodeURIComponent(email)}`;
+
+  const html = buildVerificationEmailHtml(appName, verifyUrl, code);
+  const text = buildVerificationEmailText(appName, verifyUrl, code);
+
+  try {
+    await sendSmtpEmail(emailSettings, email, `Verify your email for ${appName}`, html, text);
+  } catch (err) {
+    console.error('Failed to send registration verification email:', err);
+    return errorResponse('Failed to send verification email. Please check email settings.', 500);
+  }
+
+  return new Response(null, { status: 204 });
+}
+
+// POST /identity/accounts/register/verification-email-clicked
+export async function handleRegistrationVerificationEmailClicked(request: Request, env: Env): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  let body: { token?: string; email?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const tokenId = (body.token || '').trim();
+  const email = (body.email || '').toLowerCase().trim();
+
+  if (!tokenId || !email) {
+    return errorResponse('Token and email are required.', 400);
+  }
+
+  const nowMs = Date.now();
+  const storedOtp = await storage.getActiveEmailOtp(tokenId, 'registration_verify', nowMs);
+  if (!storedOtp || storedOtp.email !== email) {
+    return errorResponse('Invalid or expired verification token.', 400);
+  }
+
+  // Return the token so the client can use it in the finish step
+  return jsonResponse({ token: tokenId, object: 'emailVerification' });
+}
+
+// POST /identity/accounts/register/finish
+export async function handleFinishRegistration(request: Request, env: Env): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  const unsafe = jwtSecretUnsafeReason(env);
+  if (unsafe) {
+    const message = unsafe === 'missing'
+      ? 'JWT_SECRET is not set'
+      : 'JWT_SECRET must be at least 32 characters';
+    return errorResponse(message, 400);
+  }
+
+  let body: {
+    email?: string;
+    emailVerificationToken?: string;
+    token?: string;
+    name?: string;
+    masterPasswordHash?: string;
+    key?: string;
+    kdf?: number;
+    kdfIterations?: number;
+    kdfMemory?: number;
+    kdfParallelism?: number;
+    masterPasswordHint?: string;
+    keys?: {
+      publicKey?: string;
+      encryptedPrivateKey?: string;
+    };
+    inviteCode?: string;
+  };
+
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const email = (body.email || '').toLowerCase().trim();
+  const tokenId = (body.emailVerificationToken || body.token || '').trim();
+  const name = (body.name || '').trim() || email;
+  const masterPasswordHash = body.masterPasswordHash;
+  const key = body.key;
+  const privateKey = body.keys?.encryptedPrivateKey;
+  const publicKey = body.keys?.publicKey;
+  const inviteCode = (body.inviteCode || '').trim();
+  const masterPasswordHint = normalizeMasterPasswordHint(body.masterPasswordHint);
+
+  if (!email || !masterPasswordHash || !key) {
+    return errorResponse('Email, masterPasswordHash, and key are required', 400);
+  }
+  if (!email.includes('@') || email.length < 3) {
+    return errorResponse('Invalid email address', 400);
+  }
+  if (!privateKey || !publicKey) {
+    return errorResponse('Private key and public key are required', 400);
+  }
+  if (!looksLikeEncString(key)) {
+    return errorResponse('key is not a valid encrypted string', 400);
+  }
+  if (!looksLikeEncString(privateKey)) {
+    return errorResponse('encryptedPrivateKey is not a valid encrypted string', 400);
+  }
+  if (masterPasswordHint && masterPasswordHint.length > 120) {
+    return errorResponse('masterPasswordHint must be 120 characters or fewer', 400);
+  }
+
+  const kdfErr = validateKdfParams(body.kdf, body.kdfIterations, body.kdfMemory, body.kdfParallelism);
+  if (kdfErr) return errorResponse(kdfErr, 400);
+
+  // Verify the email token
+  const nowMs = Date.now();
+  const storedOtp = tokenId ? await storage.getActiveEmailOtp(tokenId, 'registration_verify', nowMs) : null;
+  if (!storedOtp || storedOtp.email !== email) {
+    return errorResponse('Invalid or expired email verification token.', 400);
+  }
+
+  const registrationEnabled = await isRegistrationEnabled(storage);
+  if (!registrationEnabled) {
+    return errorResponse('Registration is disabled by the administrator', 403);
+  }
+
+  // Consume the verification token
+  await storage.deleteEmailOtp(tokenId);
+
+  const now = new Date().toISOString();
+  const auth = new AuthService(env);
+  const serverHash = await auth.hashPasswordServer(masterPasswordHash, email);
+
+  const user: User = {
+    id: generateUUID(),
+    email,
+    name: name || email,
+    masterPasswordHint,
+    masterPasswordHash: serverHash,
+    key,
+    privateKey,
+    publicKey,
+    kdfType: body.kdf ?? 0,
+    kdfIterations: body.kdfIterations ?? LIMITS.auth.defaultKdfIterations,
+    kdfMemory: body.kdfMemory,
+    kdfParallelism: body.kdfParallelism,
+    securityStamp: generateUUID(),
+    role: 'user',
+    status: 'active',
+    verifyDevices: false,
+    totpSecret: null,
+    totpRecoveryCode: null,
+    emailTwoFactorEnabled: false,
+    yubikeyKey1: null,
+    yubikeyKey2: null,
+    yubikeyKey3: null,
+    yubikeyKey4: null,
+    yubikeyKey5: null,
+    yubikeyNfc: false,
+    apiKey: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const userCount = await storage.getUserCount();
+  if (userCount === 0) {
+    user.role = 'owner';
+    const created = await storage.createFirstUser(user);
+    if (!created) {
+      return errorResponse('Registration is temporarily unavailable, retry once', 409);
+    }
+    await storage.setRegistered();
+    await writeAuditEvent(storage, {
+      actorUserId: user.id,
+      action: 'user.register.first_owner',
+      targetType: 'user',
+      targetId: user.id,
+      category: 'security',
+      level: 'security',
+      metadata: { email: user.email, ...auditRequestMetadata(request) },
+    });
+    return jsonResponse({ success: true, role: user.role }, 200);
+  }
+
+  // Validate invite if required
+  let inviteMarked = false;
+  if (inviteCode) {
+    inviteMarked = await storage.markInviteUsed(inviteCode, user.id);
+    if (!inviteMarked) {
+      return errorResponse('Invite code is invalid or expired', 403);
+    }
+  }
+
+  try {
+    await storage.createUser(user);
+  } catch (error) {
+    if (inviteMarked) await storage.revertInviteUsed(inviteCode, user.id);
+    const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (msg.includes('unique') || msg.includes('constraint')) {
+      return errorResponse('Email already registered', 409);
+    }
+    throw error;
+  }
+
+  if (inviteMarked) {
+    try {
+      await storage.assignInviteUsedBy(inviteCode, user.id);
+    } catch (error) {
+      console.error('Invite used_by assignment failed after email-verified registration:', error);
+    }
+  }
+
+  await writeAuditEvent(storage, {
+    actorUserId: user.id,
+    action: 'user.register.email_verified',
+    targetType: 'user',
+    targetId: user.id,
+    category: 'security',
+    level: 'info',
+    metadata: { email: user.email, ...auditRequestMetadata(request) },
+  });
+
+  return jsonResponse({ success: true, role: user.role }, 200);
 }

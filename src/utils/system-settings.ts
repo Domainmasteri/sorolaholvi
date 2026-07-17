@@ -1,6 +1,8 @@
 import type { StorageService } from '../services/storage';
 
 export const REGISTRATION_ENABLED_CONFIG_KEY = 'globalSettings__registration__enabled';
+export const REQUIRE_EMAIL_CONFIRMATION_CONFIG_KEY = 'globalSettings__registration__requireEmailConfirmation';
+export const EMAIL_TWO_FACTOR_ENABLED_CONFIG_KEY = 'globalSettings__account__emailTwoFactorEnabled';
 export const EMAIL_ENABLED_CONFIG_KEY = 'globalSettings__email__enabled';
 export const EMAIL_FROM_EMAIL_CONFIG_KEY = 'globalSettings__email__fromEmail';
 export const EMAIL_FROM_NAME_CONFIG_KEY = 'globalSettings__email__fromName';
@@ -22,12 +24,16 @@ export interface EmailSettings {
 
 export interface SystemSettings {
   registrationEnabled: boolean;
+  requireEmailConfirmation: boolean;
+  emailTwoFactorEnabled: boolean;
   emailChangeEnabled: boolean;
   email: EmailSettings;
 }
 
 export interface SystemSettingsUpdate {
   registrationEnabled?: boolean;
+  requireEmailConfirmation?: boolean;
+  emailTwoFactorEnabled?: boolean;
   emailChangeEnabled?: boolean;
   email?: Partial<EmailSettings>;
 }
@@ -52,6 +58,8 @@ function readPort(raw: string | null): number | null {
 export async function getSystemSettings(storage: StorageService): Promise<SystemSettings> {
   const registrationDefault = true;
   const registrationEnabled = readBoolean(await storage.getConfigValue(REGISTRATION_ENABLED_CONFIG_KEY), registrationDefault);
+  const requireEmailConfirmation = readBoolean(await storage.getConfigValue(REQUIRE_EMAIL_CONFIRMATION_CONFIG_KEY), false);
+  const emailTwoFactorEnabled = readBoolean(await storage.getConfigValue(EMAIL_TWO_FACTOR_ENABLED_CONFIG_KEY), false);
   const emailChangeEnabled = readBoolean(await storage.getConfigValue(EMAIL_CHANGE_ENABLED_CONFIG_KEY), true);
   const emailEnabled = readBoolean(await storage.getConfigValue(EMAIL_ENABLED_CONFIG_KEY), false);
   const email: EmailSettings = {
@@ -65,6 +73,8 @@ export async function getSystemSettings(storage: StorageService): Promise<System
   };
   return {
     registrationEnabled,
+    requireEmailConfirmation,
+    emailTwoFactorEnabled,
     emailChangeEnabled,
     email,
   };
@@ -80,12 +90,34 @@ export async function isEmailDeliveryEnabled(storage: StorageService): Promise<b
   return readBoolean(await storage.getConfigValue(EMAIL_ENABLED_CONFIG_KEY), false);
 }
 
+export async function getEmailSettingsForDelivery(storage: StorageService): Promise<EmailSettings | null> {
+  const enabled = readBoolean(await storage.getConfigValue(EMAIL_ENABLED_CONFIG_KEY), false);
+  if (!enabled) return null;
+  const host = readString(await storage.getConfigValue(EMAIL_SMTP_HOST_CONFIG_KEY));
+  if (!host) return null;
+  return {
+    enabled: true,
+    fromEmail: readString(await storage.getConfigValue(EMAIL_FROM_EMAIL_CONFIG_KEY)),
+    fromName: readString(await storage.getConfigValue(EMAIL_FROM_NAME_CONFIG_KEY)),
+    smtpHost: host,
+    smtpPort: readPort(await storage.getConfigValue(EMAIL_SMTP_PORT_CONFIG_KEY)),
+    smtpUsername: readString(await storage.getConfigValue(EMAIL_SMTP_USERNAME_CONFIG_KEY)),
+    smtpPassword: readString(await storage.getConfigValue(EMAIL_SMTP_PASSWORD_CONFIG_KEY)),
+  };
+}
+
 export async function saveSystemSettings(storage: StorageService, update: SystemSettingsUpdate): Promise<SystemSettings> {
   const current = await getSystemSettings(storage);
   const next: SystemSettings = {
     registrationEnabled: typeof update.registrationEnabled === 'boolean'
       ? update.registrationEnabled
       : current.registrationEnabled,
+    requireEmailConfirmation: typeof update.requireEmailConfirmation === 'boolean'
+      ? update.requireEmailConfirmation
+      : current.requireEmailConfirmation,
+    emailTwoFactorEnabled: typeof update.emailTwoFactorEnabled === 'boolean'
+      ? update.emailTwoFactorEnabled
+      : current.emailTwoFactorEnabled,
     emailChangeEnabled: typeof update.emailChangeEnabled === 'boolean'
       ? update.emailChangeEnabled
       : current.emailChangeEnabled,
@@ -117,6 +149,8 @@ export async function saveSystemSettings(storage: StorageService, update: System
   };
 
   await storage.setConfigValue(REGISTRATION_ENABLED_CONFIG_KEY, next.registrationEnabled ? 'true' : 'false');
+  await storage.setConfigValue(REQUIRE_EMAIL_CONFIRMATION_CONFIG_KEY, next.requireEmailConfirmation ? 'true' : 'false');
+  await storage.setConfigValue(EMAIL_TWO_FACTOR_ENABLED_CONFIG_KEY, next.emailTwoFactorEnabled ? 'true' : 'false');
   await storage.setConfigValue(EMAIL_CHANGE_ENABLED_CONFIG_KEY, next.emailChangeEnabled ? 'true' : 'false');
   await storage.setConfigValue(EMAIL_ENABLED_CONFIG_KEY, next.email.enabled ? 'true' : 'false');
   await storage.setConfigValue(EMAIL_FROM_EMAIL_CONFIG_KEY, next.email.fromEmail);

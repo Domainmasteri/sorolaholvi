@@ -152,6 +152,7 @@ export interface User {
   verifyDevices?: boolean;
   totpSecret: string | null;
   totpRecoveryCode: string | null;
+  emailTwoFactorEnabled: boolean;
   yubikeyKey1: string | null;
   yubikeyKey2: string | null;
   yubikeyKey3: string | null;

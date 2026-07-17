@@ -1202,6 +1202,8 @@ const fi: Record<string, string> = {
   "txt_role_owner": "Omistaja",
   "txt_registration_enabled": "Rekisteröityminen käytössä",
   "txt_allow_user_email_changes": "Salli käyttäjien sähköpostiosoitteen vaihto",
+  "txt_email_two_factor_enabled": "Sähköpostipohjainen kaksivaiheinen tunnistautuminen",
+  "txt_require_email_confirmation": "Vaadi sähköpostivahvistus rekisteröitymiseen",
   "txt_email_delivery_enabled": "Sähköpostin toimitus käytössä",
   "txt_email_settings": "Sähköpostiasetukset",
   "txt_from_email": "Lähettäjän sähköposti",

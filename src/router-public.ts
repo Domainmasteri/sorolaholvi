@@ -18,6 +18,10 @@ import {
   handleRegister,
   handleGetPasswordHint,
   handleRecoverTwoFactor,
+  handleSendRegistrationVerificationEmail,
+  handleRegistrationVerificationEmailClicked,
+  handleFinishRegistration,
+  handleSendEmailLoginCode,
 } from './handlers/accounts';
 import {
   handleCreateAuthRequest,
@@ -524,6 +528,30 @@ export async function handlePublicRoute(
     const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
     if (!emailDeliveryEnabled) {
       return unsupportedResponse('Email delivery is disabled by the administrator.');
+    }
+    if (
+      path === '/api/accounts/register/send-verification-email' ||
+      path === '/accounts/register/send-verification-email' ||
+      path === '/identity/accounts/register/send-verification-email'
+    ) {
+      return handleSendRegistrationVerificationEmail(request, env);
+    }
+    if (
+      path === '/api/accounts/register/verification-email-clicked' ||
+      path === '/accounts/register/verification-email-clicked' ||
+      path === '/identity/accounts/register/verification-email-clicked'
+    ) {
+      return handleRegistrationVerificationEmailClicked(request, env);
+    }
+    if (
+      path === '/api/accounts/register/finish' ||
+      path === '/accounts/register/finish' ||
+      path === '/identity/accounts/register/finish'
+    ) {
+      return handleFinishRegistration(request, env);
+    }
+    if (path === '/api/two-factor/send-email-login' || path === '/two-factor/send-email-login') {
+      return handleSendEmailLoginCode(request, env);
     }
     return unsupportedResponse('Email delivery is not supported by this server.');
   }

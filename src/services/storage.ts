@@ -182,6 +182,17 @@ import {
   replaceCipherCollections as replaceStoredCipherCollections,
   getAccessibleCipherIds as getStoredAccessibleCipherIds,
 } from './storage-collection-repo';
+import {
+  type EmailOtp,
+  type EmailOtpPurpose,
+  deleteEmailOtp as deleteStoredEmailOtp,
+  deleteEmailOtpsByEmailAndPurpose as deleteStoredEmailOtpsByEmail,
+  deleteEmailOtpsByUserAndPurpose as deleteStoredEmailOtpsByUser,
+  getActiveEmailOtp as findStoredActiveEmailOtp,
+  getActiveEmailOtpByUserAndPurpose as findStoredActiveEmailOtpByUser,
+  pruneExpiredEmailOtps as pruneStoredExpiredEmailOtps,
+  saveEmailOtp as saveStoredEmailOtp,
+} from './storage-email-otp-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
@@ -189,8 +200,8 @@ const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
 // Bump this whenever src/services/storage-schema.ts or migrations/0001_init.sql
 // changes. Existing D1 installs only rerun ensureStorageSchema() when this value
 // differs from config.schema.version.
-const STORAGE_SCHEMA_VERSION = '2026-07-16-collections';
-const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays', 'organizations', 'organization_users', 'collections', 'collection_users', 'collection_items'] as const;
+const STORAGE_SCHEMA_VERSION = '2026-07-17-email-features';
+const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays', 'organizations', 'organization_users', 'collections', 'collection_users', 'collection_items', 'email_otps'] as const;
 
 // D1-backed storage.
 // Contract:
@@ -1074,4 +1085,34 @@ export class StorageService {
   }
 
   collectionToResponse = collectionToResponse;
+
+  // --- Email OTPs ---
+
+  async saveEmailOtp(otp: EmailOtp): Promise<void> {
+    await saveStoredEmailOtp(this.db, otp);
+  }
+
+  async getActiveEmailOtp(id: string, purpose: EmailOtpPurpose, nowMs: number): Promise<EmailOtp | null> {
+    return findStoredActiveEmailOtp(this.db, id, purpose, nowMs);
+  }
+
+  async getActiveEmailOtpByUserAndPurpose(userId: string, purpose: EmailOtpPurpose, nowMs: number): Promise<EmailOtp | null> {
+    return findStoredActiveEmailOtpByUser(this.db, userId, purpose, nowMs);
+  }
+
+  async deleteEmailOtp(id: string): Promise<void> {
+    await deleteStoredEmailOtp(this.db, id);
+  }
+
+  async deleteEmailOtpsByUser(userId: string, purpose: EmailOtpPurpose): Promise<void> {
+    await deleteStoredEmailOtpsByUser(this.db, userId, purpose);
+  }
+
+  async deleteEmailOtpsByEmail(email: string, purpose: EmailOtpPurpose): Promise<void> {
+    await deleteStoredEmailOtpsByEmail(this.db, email, purpose);
+  }
+
+  async pruneExpiredEmailOtps(nowMs: number): Promise<void> {
+    await pruneStoredExpiredEmailOtps(this.db, nowMs);
+  }
 }

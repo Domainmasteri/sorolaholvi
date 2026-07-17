@@ -1202,6 +1202,8 @@ const es: Record<string, string> = {
   "txt_role_owner": "Propietario",
   "txt_registration_enabled": "Registro habilitado",
   "txt_allow_user_email_changes": "Permitir que los usuarios cambien su correo electrónico",
+  "txt_email_two_factor_enabled": "Autenticación de dos factores por correo electrónico",
+  "txt_require_email_confirmation": "Requerir confirmación de correo electrónico para el registro",
   "txt_email_delivery_enabled": "Entrega de correo habilitada",
   "txt_email_settings": "Configuración de correo electrónico",
   "txt_from_email": "Correo de origen",

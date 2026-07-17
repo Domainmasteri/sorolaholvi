@@ -160,6 +160,15 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'CREATE TABLE IF NOT EXISTS used_attachment_download_tokens (' +
   'jti TEXT PRIMARY KEY, expires_at INTEGER NOT NULL)',
 
+  // ---- Email OTPs (added in 0004_email_features.sql) ----
+  'ALTER TABLE users ADD COLUMN email_two_factor_enabled INTEGER NOT NULL DEFAULT 0',
+  'CREATE TABLE IF NOT EXISTS email_otps (' +
+  'id TEXT PRIMARY KEY, user_id TEXT, email TEXT NOT NULL, code TEXT NOT NULL, purpose TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_email_otps_user_purpose ON email_otps(user_id, purpose)',
+  'CREATE INDEX IF NOT EXISTS idx_email_otps_email_purpose ON email_otps(email, purpose)',
+  'CREATE INDEX IF NOT EXISTS idx_email_otps_expires ON email_otps(expires_at)',
+
   // ---- Organizations (added in 0002_organizations.sql) ----
   // role: 0=Owner, 1=Admin, 2=User, 3=Manager, 4=Custom
   // status: -1=Revoked, 0=Invited, 1=Accepted, 2=Confirmed

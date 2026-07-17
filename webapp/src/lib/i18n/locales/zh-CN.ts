@@ -1202,6 +1202,8 @@ const zhCN: Record<string, string> = {
   "txt_role_owner": "所有者",
   "txt_registration_enabled": "允许注册",
   "txt_allow_user_email_changes": "允许用户修改邮箱地址",
+  "txt_email_two_factor_enabled": "电子邮件两步验证",
+  "txt_require_email_confirmation": "注册时需要邮箱验证",
   "txt_email_delivery_enabled": "启用邮件发送",
   "txt_email_settings": "邮件设置",
   "txt_from_email": "发件人邮箱",

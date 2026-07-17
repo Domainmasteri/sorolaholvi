@@ -24,6 +24,9 @@ import {
   handleDisableTwoFactorProvider,
   handleGetApiKey,
   handleRotateApiKey,
+  handleGetEmailTwoFactor,
+  handleSendEmailTwoFactorCode,
+  handleEnableEmailTwoFactor,
 } from './handlers/accounts';
 import {
   handleGetCiphers,
@@ -175,13 +178,21 @@ export async function handleAuthenticatedRoute(
     '/api/two-factor/email',
     '/two-factor/email',
   ]);
-  if (emailTwoFactorPaths.has(path) && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
-    const storage = new StorageService(env.DB);
-    const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
-    if (!emailDeliveryEnabled) {
-      return unsupportedResponse('Email delivery is disabled by the administrator.');
+  if (emailTwoFactorPaths.has(path)) {
+    if (path === '/api/two-factor/get-email' || path === '/two-factor/get-email') {
+      if (method === 'GET' || method === 'POST') return handleGetEmailTwoFactor(request, env, userId);
     }
-    return unsupportedResponse('Email two-step login is not supported by this server.');
+    if (path === '/api/two-factor/send-email' || path === '/two-factor/send-email') {
+      if (method === 'POST') return handleSendEmailTwoFactorCode(request, env, userId);
+    }
+    if (path === '/api/two-factor/email' || path === '/two-factor/email') {
+      if (method === 'PUT' || method === 'POST') return handleEnableEmailTwoFactor(request, env, userId);
+      if (method === 'DELETE') return handleDisableTwoFactorProvider(request, env, userId);
+    }
+    if (path === '/api/two-factor/send-email-login' || path === '/two-factor/send-email-login') {
+      if (method === 'POST') return handleSendEmailTwoFactorCode(request, env, userId);
+    }
+    return errorResponse('Method not allowed', 405);
   }
 
   if (path === '/api/accounts/profile') {

@@ -609,6 +609,8 @@ export interface AdminEmailSettings {
 export interface AdminSystemSettings {
   registrationEnabled: boolean;
   emailChangeEnabled: boolean;
+  emailTwoFactorEnabled: boolean;
+  requireEmailConfirmation: boolean;
   email: AdminEmailSettings;
 }
 

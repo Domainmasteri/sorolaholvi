@@ -1202,6 +1202,8 @@ const fr: Record<string, string> = {
   "txt_role_owner": "Propriétaire",
   "txt_registration_enabled": "Inscription activée",
   "txt_allow_user_email_changes": "Autoriser les utilisateurs à changer d'adresse e-mail",
+  "txt_email_two_factor_enabled": "Authentification à deux facteurs par e-mail",
+  "txt_require_email_confirmation": "Exiger une confirmation par e-mail pour l'inscription",
   "txt_email_delivery_enabled": "Envoi d'e-mails activé",
   "txt_email_settings": "Paramètres e-mail",
   "txt_from_email": "E-mail expéditeur",

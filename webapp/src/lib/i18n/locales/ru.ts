@@ -1202,6 +1202,8 @@ const ru: Record<string, string> = {
   "txt_role_owner": "Владелец",
   "txt_registration_enabled": "Регистрация включена",
   "txt_allow_user_email_changes": "Разрешить пользователям менять адрес электронной почты",
+  "txt_email_two_factor_enabled": "Двухфакторная аутентификация по электронной почте",
+  "txt_require_email_confirmation": "Требовать подтверждение электронной почты при регистрации",
   "txt_email_delivery_enabled": "Доставка электронной почты включена",
   "txt_email_settings": "Настройки электронной почты",
   "txt_from_email": "Адрес отправителя",
