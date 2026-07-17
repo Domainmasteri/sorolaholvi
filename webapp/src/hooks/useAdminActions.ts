@@ -131,10 +131,10 @@ export default function useAdminActions(options: UseAdminActionsOptions) {
         try {
           const saved = await saveAdminSettings(authedFetch, settings);
           await refetchSettings();
-          onNotify('success', 'Admin settings saved');
+          onNotify('success', t('txt_log_settings_saved'));
           return saved;
         } catch (error) {
-          onNotify('error', error instanceof Error ? error.message : 'Failed to save admin settings');
+          onNotify('error', error instanceof Error ? error.message : t('txt_log_settings_save_failed'));
           throw error;
         }
       },

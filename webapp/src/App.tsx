@@ -2254,7 +2254,7 @@ export default function App() {
               return;
             }
             if (!registrationEnabled) {
-              pushToast('warning', 'Registration is disabled by the administrator');
+              pushToast('warning', t('txt_register_failed'));
               return;
             }
             if (inviteCodeFromUrl) {

@@ -93,7 +93,7 @@ export default function AdminPage(props: AdminPageProps) {
         </div>
         <div className="stack">
           <label className="field">
-            <span>Registration enabled</span>
+            <span>Registration Enabled</span>
             <input
               type="checkbox"
               checked={registrationEnabled}
@@ -102,7 +102,7 @@ export default function AdminPage(props: AdminPageProps) {
             />
           </label>
           <label className="field">
-            <span>Email delivery enabled</span>
+            <span>Email Delivery Enabled</span>
             <input
               type="checkbox"
               checked={emailEnabled}
@@ -112,11 +112,11 @@ export default function AdminPage(props: AdminPageProps) {
           </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="field">
-              <span>From email</span>
+              <span>From Email</span>
               <input className="input" value={fromEmail} onInput={(e) => setFromEmail((e.currentTarget as HTMLInputElement).value)} />
             </label>
             <label className="field">
-              <span>From name</span>
+              <span>From Name</span>
               <input className="input" value={fromName} onInput={(e) => setFromName((e.currentTarget as HTMLInputElement).value)} />
             </label>
             <label className="field">
