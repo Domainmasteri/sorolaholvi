@@ -11,6 +11,8 @@ import {
   handleAdminGetAuditLogSettings,
   handleAdminUpdateAuditLogSettings,
   handleAdminClearAuditLogs,
+  handleAdminGetSystemSettings,
+  handleAdminUpdateSystemSettings,
 } from './handlers/admin';
 import { handleAdminBackupRoute } from './router-admin-backup';
 import { errorResponse } from './utils/response';
@@ -20,6 +22,7 @@ function isKnownAdminPath(path: string): boolean {
     path === '/api/admin/users' ||
     path === '/api/admin/logs' ||
     path === '/api/admin/logs/settings' ||
+    path === '/api/admin/settings' ||
     path === '/api/admin/invites' ||
     path.startsWith('/api/admin/backup') ||
     /^\/api\/admin\/invites\/[^/]+$/i.test(path) ||
@@ -60,6 +63,12 @@ export async function handleAdminRoute(
   if (path === '/api/admin/logs/settings') {
     if (method === 'GET') return handleAdminGetAuditLogSettings(request, env, actorUser);
     if (method === 'PUT' || method === 'POST') return handleAdminUpdateAuditLogSettings(request, env, actorUser);
+    return null;
+  }
+
+  if (path === '/api/admin/settings') {
+    if (method === 'GET') return handleAdminGetSystemSettings(request, env, actorUser);
+    if (method === 'PUT' || method === 'POST') return handleAdminUpdateSystemSettings(request, env, actorUser);
     return null;
   }
 

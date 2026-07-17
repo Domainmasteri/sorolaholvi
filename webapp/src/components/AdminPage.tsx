@@ -1,15 +1,17 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { ChevronLeft, ChevronRight, Clipboard, Plus, RefreshCw, Trash2, UserCheck, UserX } from 'lucide-preact';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import LoadingState from '@/components/LoadingState';
-import type { AdminInvite, AdminUser } from '@/lib/types';
+import type { AdminInvite, AdminSystemSettings, AdminUser } from '@/lib/types';
 import { t } from '@/lib/i18n';
 
 interface AdminPageProps {
   currentUserId: string;
   users: AdminUser[];
   invites: AdminInvite[];
+  settings: AdminSystemSettings | null;
   loading: boolean;
+  settingsLoading: boolean;
   error: string;
   onRefresh: () => void;
   onCreateInvite: (hours: number) => Promise<void>;
@@ -18,11 +20,20 @@ interface AdminPageProps {
   onToggleUserStatus: (userId: string, currentStatus: 'active' | 'banned') => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onDeleteInvite: (code: string) => Promise<void>;
+  onSaveSettings: (settings: Partial<AdminSystemSettings>) => Promise<void>;
 }
 
 export default function AdminPage(props: AdminPageProps) {
   const [inviteHours, setInviteHours] = useState(168);
   const [page, setPage] = useState(1);
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [fromEmail, setFromEmail] = useState('');
+  const [fromName, setFromName] = useState('');
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('');
+  const [smtpUsername, setSmtpUsername] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
   const pageSize = 20;
   const formatExpiresAt = (x?: string) => (x ? new Date(x).toLocaleString() : t('txt_dash'));
   const totalPages = Math.max(1, Math.ceil(props.invites.length / pageSize));
@@ -50,6 +61,18 @@ export default function AdminPage(props: AdminPageProps) {
     return null;
   };
 
+  useEffect(() => {
+    if (!props.settings) return;
+    setRegistrationEnabled(props.settings.registrationEnabled !== false);
+    setEmailEnabled(!!props.settings.email?.enabled);
+    setFromEmail(props.settings.email?.fromEmail || '');
+    setFromName(props.settings.email?.fromName || '');
+    setSmtpHost(props.settings.email?.smtpHost || '');
+    setSmtpPort(props.settings.email?.smtpPort ? String(props.settings.email.smtpPort) : '');
+    setSmtpUsername(props.settings.email?.smtpUsername || '');
+    setSmtpPassword(props.settings.email?.smtpPassword || '');
+  }, [props.settings]);
+
   return (
     <div className="stack">
       {!!props.error && (
@@ -61,6 +84,81 @@ export default function AdminPage(props: AdminPageProps) {
           </button>
         </div>
       )}
+      <section className="card">
+        <div className="section-head">
+          <h3>{t('txt_settings')}</h3>
+          <button type="button" className="btn btn-secondary small" disabled={props.loading || props.settingsLoading} onClick={props.onRefresh}>
+            <RefreshCw size={14} className="btn-icon" /> {t('txt_refresh')}
+          </button>
+        </div>
+        <div className="stack">
+          <label className="field">
+            <span>Registration enabled</span>
+            <input
+              type="checkbox"
+              checked={registrationEnabled}
+              onChange={(e) => setRegistrationEnabled((e.currentTarget as HTMLInputElement).checked)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>Email delivery enabled</span>
+            <input
+              type="checkbox"
+              checked={emailEnabled}
+              onChange={(e) => setEmailEnabled((e.currentTarget as HTMLInputElement).checked)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="field">
+              <span>From email</span>
+              <input className="input" value={fromEmail} onInput={(e) => setFromEmail((e.currentTarget as HTMLInputElement).value)} />
+            </label>
+            <label className="field">
+              <span>From name</span>
+              <input className="input" value={fromName} onInput={(e) => setFromName((e.currentTarget as HTMLInputElement).value)} />
+            </label>
+            <label className="field">
+              <span>SMTP host</span>
+              <input className="input" value={smtpHost} onInput={(e) => setSmtpHost((e.currentTarget as HTMLInputElement).value)} />
+            </label>
+            <label className="field">
+              <span>SMTP port</span>
+              <input className="input" type="number" value={smtpPort} onInput={(e) => setSmtpPort((e.currentTarget as HTMLInputElement).value)} />
+            </label>
+            <label className="field">
+              <span>SMTP username</span>
+              <input className="input" value={smtpUsername} onInput={(e) => setSmtpUsername((e.currentTarget as HTMLInputElement).value)} />
+            </label>
+            <label className="field">
+              <span>SMTP password</span>
+              <input className="input" type="password" value={smtpPassword} onInput={(e) => setSmtpPassword((e.currentTarget as HTMLInputElement).value)} />
+            </label>
+          </div>
+          <div className="actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={props.loading || props.settingsLoading}
+              onClick={() => void props.onSaveSettings({
+                registrationEnabled,
+                email: {
+                  enabled: emailEnabled,
+                  fromEmail,
+                  fromName,
+                  smtpHost,
+                  smtpPort: smtpPort.trim() ? Number(smtpPort) : null,
+                  smtpUsername,
+                  smtpPassword,
+                },
+              })}
+            >
+              {t('txt_save')}
+            </button>
+          </div>
+        </div>
+      </section>
       <section className="card">
         <div className="section-head">
           <h3>{t('txt_users')}</h3>

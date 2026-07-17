@@ -31,7 +31,7 @@ import {
   listPendingAuthRequests,
   respondToAuthRequest,
 } from '@/lib/api/auth-requests';
-import { clearAuditLogs, getAuditLogSettings, listAdminInvites, listAdminUsers, listAuditLogs, saveAuditLogSettings, type AuditLogFilters } from '@/lib/api/admin';
+import { clearAuditLogs, getAdminSettings, getAuditLogSettings, listAdminInvites, listAdminUsers, listAuditLogs, saveAuditLogSettings, type AuditLogFilters } from '@/lib/api/admin';
 import { getDomainRules, saveDomainRules } from '@/lib/api/domains';
 import { getSendById, getSends } from '@/lib/api/send';
 import { getCipherById, getFolderById, repairCipherKeyMismatches, repairCipherUriChecksums } from '@/lib/api/vault';
@@ -84,7 +84,7 @@ import {
   createDemoMainRoutesProps,
 } from '@/lib/demo';
 import type { AdminBackupSettings } from '@/lib/api/backup';
-import type { AdminInvite, AdminUser, AppPhase, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SessionState } from '@/lib/types';
+import type { AdminInvite, AdminSystemSettings, AdminUser, AppPhase, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SessionState } from '@/lib/types';
 import type { VaultCoreSnapshot } from '@/lib/vault-cache';
 
 function isBackupProgressDetail(value: unknown): value is BackupProgressDetail {
@@ -208,6 +208,7 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(initialProfileSnapshot);
   const [defaultKdfIterations, setDefaultKdfIterations] = useState(initialBootstrap.defaultKdfIterations);
   const [registrationInviteRequired, setRegistrationInviteRequired] = useState(initialBootstrap.registrationInviteRequired);
+  const [registrationEnabled, setRegistrationEnabled] = useState(initialBootstrap.registrationEnabled !== false);
   const [jwtWarning, setJwtWarning] = useState<{ reason: JwtUnsafeReason; minLength: number } | null>(initialBootstrap.jwtWarning);
 
   const [loginValues, setLoginValues] = useState({ email: '', password: '' });
@@ -465,6 +466,7 @@ export default function App() {
       const isDemoPublicSendRoute = /^send\/[^/]+(?:\/[^/]+)?$/i.test(normalizedCurrentHashPath);
       setDefaultKdfIterations(initialBootstrap.defaultKdfIterations);
       setRegistrationInviteRequired(initialBootstrap.registrationInviteRequired);
+      setRegistrationEnabled(initialBootstrap.registrationEnabled !== false);
       setJwtWarning(null);
       setSession(null);
       setProfile(null);
@@ -481,6 +483,7 @@ export default function App() {
       if (sessionRef.current?.symEncKey || sessionRef.current?.symMacKey) return;
       setDefaultKdfIterations(boot.defaultKdfIterations);
       setRegistrationInviteRequired(boot.registrationInviteRequired);
+      setRegistrationEnabled(boot.registrationEnabled !== false);
       setJwtWarning(boot.jwtWarning);
       setSession(boot.session);
       setProfile(boot.profile);
@@ -1109,6 +1112,13 @@ export default function App() {
     enabled: !IS_DEMO_MODE && phase === 'app' && !!session?.accessToken && isAdmin && vaultInitialDecryptDone,
     staleTime: 30_000,
   });
+  const adminSettingsQuery = useQuery({
+    queryKey: ['admin-settings', vaultCacheKey],
+    queryFn: () => getAdminSettings(authedFetch),
+    enabled: !IS_DEMO_MODE && phase === 'app' && !!session?.accessToken && isAdmin && vaultInitialDecryptDone,
+    staleTime: 30_000,
+  });
+  const adminSettings = (adminSettingsQuery.data || null) as AdminSystemSettings | null;
   const twoFactorStatusQuery = useQuery({
     queryKey: ['two-factor-status', vaultCacheKey || session?.email],
     queryFn: () => getTwoFactorProviderStatus(authedFetch),
@@ -1852,6 +1862,7 @@ export default function App() {
     onSetConfirm: setConfirm,
     refetchUsers: usersQuery.refetch,
     refetchInvites: invitesQuery.refetch,
+    refetchSettings: adminSettingsQuery.refetch,
   });
 
   refreshAuthorizedDevicesRef.current = async () => {
@@ -1981,7 +1992,9 @@ export default function App() {
     users: usersQuery.data || [],
     invites: invitesQuery.data || [],
     adminLoading: (usersQuery.isFetching && !usersQuery.data) || (invitesQuery.isFetching && !invitesQuery.data),
-    adminError: usersQuery.isError || invitesQuery.isError ? t('txt_load_admin_data_failed') : '',
+    adminSettings,
+    adminSettingsLoading: adminSettingsQuery.isFetching && !adminSettingsQuery.data,
+    adminError: usersQuery.isError || invitesQuery.isError || adminSettingsQuery.isError ? t('txt_load_admin_data_failed') : '',
     totpEnabled: !!twoFactorStatusQuery.data?.totpEnabled,
     yubikeyEnabled: !!twoFactorStatusQuery.data?.yubikeyEnabled,
     passkey2faEnabled: !!twoFactorStatusQuery.data?.passkeyEnabled,
@@ -2085,6 +2098,7 @@ export default function App() {
     onToggleUserStatus: adminActions.toggleUserStatus,
     onDeleteUser: adminActions.deleteUser,
     onDeleteInvite: adminActions.deleteInvite,
+    onSaveAdminSettings: adminActions.saveSystemSettings,
     onLoadAuditLogs: (filters: AuditLogFilters) => listAuditLogs(authedFetch, filters),
     onLoadAuditLogSettings: () => getAuditLogSettings(authedFetch),
     onSaveAuditLogSettings: (settings: AuditLogSettings) => saveAuditLogSettings(authedFetch, settings),
@@ -2214,6 +2228,7 @@ export default function App() {
           passkeyPassword={passkeyPassword}
           registerValues={registerValues}
           registrationInviteRequired={registrationInviteRequired}
+          registrationEnabled={registrationEnabled}
           unlockPassword={unlockPassword}
           emailForLock={profile?.email || session?.email || ''}
           loginHintLoading={loginHintState.loading}
@@ -2236,6 +2251,10 @@ export default function App() {
           onGotoRegister={() => {
             if (IS_DEMO_MODE) {
               pushToast('warning', t('txt_demo_readonly_message'));
+              return;
+            }
+            if (!registrationEnabled) {
+              pushToast('warning', 'Registration is disabled by the administrator');
               return;
             }
             if (inviteCodeFromUrl) {

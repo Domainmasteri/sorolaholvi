@@ -9,7 +9,7 @@ import type { AdminBackupImportResponse, AdminBackupRunResponse, AdminBackupSett
 import type { AuditLogFilters } from '@/lib/api/admin';
 import type { CiphersImportPayload } from '@/lib/api/vault';
 import { t } from '@/lib/i18n';
-import type { AccountPasskeyCredential, AdminInvite, AdminUser, AuditLogListResult, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, TwoFactorPasskeySettings, VaultDraft, YubiKeyOtpSettings } from '@/lib/types';
+import type { AccountPasskeyCredential, AdminInvite, AdminSystemSettings, AdminUser, AuditLogListResult, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, TwoFactorPasskeySettings, VaultDraft, YubiKeyOtpSettings } from '@/lib/types';
 import type { ExportRequest } from '@/lib/export-formats';
 
 const VaultPage = lazy(() => import('@/components/VaultPage'));
@@ -55,7 +55,9 @@ export interface AppMainRoutesProps {
   sendsLoading: boolean;
   users: AdminUser[];
   invites: AdminInvite[];
+  adminSettings?: AdminSystemSettings | null;
   adminLoading: boolean;
+  adminSettingsLoading?: boolean;
   adminError: string;
   totpEnabled: boolean;
   yubikeyEnabled: boolean;
@@ -159,6 +161,7 @@ export interface AppMainRoutesProps {
   onToggleUserStatus: (userId: string, status: 'active' | 'banned') => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onDeleteInvite: (code: string) => Promise<void>;
+  onSaveAdminSettings?: (settings: Partial<AdminSystemSettings>) => Promise<void>;
   onLoadAuditLogs: (filters: AuditLogFilters) => Promise<AuditLogListResult>;
   onLoadAuditLogSettings: () => Promise<AuditLogSettings>;
   onSaveAuditLogSettings: (settings: AuditLogSettings) => Promise<AuditLogSettings>;
@@ -458,7 +461,9 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
               currentUserId={props.profile?.id || ''}
               users={props.users}
               invites={props.invites}
+              settings={props.adminSettings || null}
               loading={props.adminLoading}
+              settingsLoading={!!props.adminSettingsLoading}
               error={props.adminError}
               onRefresh={props.onRefreshAdmin}
               onCreateInvite={props.onCreateInvite}
@@ -467,6 +472,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
               onToggleUserStatus={props.onToggleUserStatus}
               onDeleteUser={props.onDeleteUser}
               onDeleteInvite={props.onDeleteInvite}
+              onSaveSettings={props.onSaveAdminSettings || (async () => {})}
             />
           </Suspense>
         </div>

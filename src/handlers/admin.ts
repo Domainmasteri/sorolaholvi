@@ -4,6 +4,7 @@ import { StorageService } from '../services/storage';
 import { jsonResponse, errorResponse } from '../utils/response';
 import { deleteBlobObject, getAttachmentObjectKey, getSendFileObjectKey } from '../services/blob-store';
 import { auditRequestMetadata, getAuditLogSettings, normalizeAuditLogSettings, saveAuditLogSettings, writeAuditEvent } from '../services/audit-events';
+import { getSystemSettings, saveSystemSettings, type SystemSettingsUpdate } from '../utils/system-settings';
 
 function isAdmin(user: User): boolean {
   return user.role === 'admin' && user.status === 'active';
@@ -191,6 +192,51 @@ export async function handleAdminClearAuditLogs(
     deleted,
   }, request);
   return jsonResponse({ object: 'auditLogClear', deleted });
+}
+
+// GET /api/admin/settings
+export async function handleAdminGetSystemSettings(
+  request: Request,
+  env: Env,
+  actorUser: User
+): Promise<Response> {
+  void request;
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+  const storage = new StorageService(env.DB);
+  return jsonResponse({
+    object: 'adminSettings',
+    ...await getSystemSettings(storage),
+  });
+}
+
+// PUT /api/admin/settings
+export async function handleAdminUpdateSystemSettings(
+  request: Request,
+  env: Env,
+  actorUser: User
+): Promise<Response> {
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+  let body: SystemSettingsUpdate;
+  try {
+    body = await request.json() as SystemSettingsUpdate;
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const storage = new StorageService(env.DB);
+  const settings = await saveSystemSettings(storage, body || {});
+  await writeAuditLog(storage, actorUser.id, 'admin.settings.update', 'systemSettings', null, {
+    registrationEnabled: settings.registrationEnabled,
+    emailEnabled: settings.email.enabled,
+  }, request);
+  return jsonResponse({
+    object: 'adminSettings',
+    ...settings,
+  });
 }
 
 // POST /api/admin/invites

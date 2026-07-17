@@ -36,6 +36,7 @@ import { jsonResponse, unsupportedResponse } from './utils/response';
 import { StorageService } from './services/storage';
 import type { Env } from './types';
 import { getConfiguredWebAuthnAllowedOrigins } from './utils/origins';
+import { isEmailDeliveryEnabled, isRegistrationEnabled } from './utils/system-settings';
 
 type PublicRateLimiter = (category?: string, maxRequests?: number) => Promise<Response | null>;
 type JwtUnsafeReason = 'missing' | 'too_short' | null;
@@ -45,6 +46,8 @@ export interface WebBootstrapResponse {
   jwtUnsafeReason: JwtUnsafeReason;
   jwtSecretMinLength: number;
   registrationInviteRequired: boolean;
+  registrationEnabled: boolean;
+  emailDeliveryEnabled: boolean;
   webAuthnAllowedOrigins: string[];
   websiteIconsEnabled: boolean;
 }
@@ -327,12 +330,16 @@ export async function buildWebBootstrapResponse(env: Env): Promise<WebBootstrapR
           : null;
   const storage = new StorageService(env.DB);
   const userCount = await storage.getUserCount();
+  const registrationEnabled = await isRegistrationEnabled(storage);
+  const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
 
   return {
     defaultKdfIterations: LIMITS.auth.defaultKdfIterations,
     jwtUnsafeReason,
     jwtSecretMinLength: LIMITS.auth.jwtSecretMinLength,
-    registrationInviteRequired: userCount > 0,
+    registrationInviteRequired: registrationEnabled && userCount > 0,
+    registrationEnabled,
+    emailDeliveryEnabled,
     webAuthnAllowedOrigins: getConfiguredWebAuthnAllowedOrigins(env),
     websiteIconsEnabled: isWebsiteIconProxyEnabled(env),
   };
@@ -513,6 +520,11 @@ export async function handlePublicRoute(
   if (publicMailBackedPaths.has(path) && method === 'POST') {
     const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
     if (blocked) return blocked;
+    const storage = new StorageService(env.DB);
+    const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
+    if (!emailDeliveryEnabled) {
+      return unsupportedResponse('Email delivery is disabled by the administrator.');
+    }
     return unsupportedResponse('Email delivery is not supported by this server.');
   }
 

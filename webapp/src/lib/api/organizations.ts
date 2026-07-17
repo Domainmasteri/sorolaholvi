@@ -45,6 +45,16 @@ export async function createOrganization(
   return (await parseJson<Organization>(resp)) as Organization;
 }
 
+export async function deleteOrganization(
+  authedFetch: AuthedFetch,
+  organizationId: string
+): Promise<void> {
+  const resp = await authedFetch(`/api/organizations/${encodeURIComponent(organizationId)}`, {
+    method: 'DELETE',
+  });
+  if (!resp.ok) await throwApiError(resp, 'Failed to delete organization');
+}
+
 export async function listOrganizationUsers(
   authedFetch: AuthedFetch,
   organizationId: string

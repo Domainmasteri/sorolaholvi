@@ -332,3 +332,20 @@ export async function confirmOrgUser(
     .bind(key, updatedAt, orgUserId)
     .run();
 }
+
+export async function deleteOrganizationByIdForOwner(
+  db: D1Database,
+  organizationId: string,
+  ownerUserId: string
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      'DELETE FROM organizations WHERE id = ? AND EXISTS (' +
+        'SELECT 1 FROM organization_users ou ' +
+        'WHERE ou.organization_id = organizations.id AND ou.user_id = ? AND ou.role = 0 AND ou.status = 2' +
+      ')'
+    )
+    .bind(organizationId, ownerUserId)
+    .run();
+  return Number(result.meta.changes ?? 0) > 0;
+}

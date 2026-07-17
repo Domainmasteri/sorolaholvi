@@ -6,6 +6,7 @@ import {
   confirmOrganizationUser,
   createOrganization,
   createOrganizationCollection,
+  deleteOrganization,
   deleteOrganizationCollection,
   inviteOrganizationUsers,
   listOrganizationCollections,
@@ -260,6 +261,22 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
           >
             <Plus size={14} className="btn-icon" />
             {t('txt_create')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            disabled={busy || !selectedOrganizationId}
+            onClick={() => void withBusy(async () => {
+              if (!selectedOrganizationId) return;
+              const confirmed = window.confirm('Delete this organization and all its collections?');
+              if (!confirmed) return;
+              await deleteOrganization(props.authedFetch, selectedOrganizationId);
+              await refreshAll();
+              props.onNotify('success', 'Organization deleted');
+            })}
+          >
+            <Trash2 size={14} className="btn-icon" />
+            {t('txt_delete')}
           </button>
         </div>
       </section>

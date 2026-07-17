@@ -166,6 +166,7 @@ import {
   insertOrgUser as insertStoredOrgUser,
   acceptOrgUserInvite as acceptStoredOrgUserInvite,
   confirmOrgUser as confirmStoredOrgUser,
+  deleteOrganizationByIdForOwner as deleteStoredOrganizationByIdForOwner,
 } from './storage-organization-repo';
 import {
   collectionToResponse,
@@ -1011,6 +1012,10 @@ export class StorageService {
 
   async confirmOrgUser(orgUserId: string, key: string, updatedAt: string): Promise<void> {
     await confirmStoredOrgUser(this.db, orgUserId, key, updatedAt);
+  }
+
+  async deleteOrganizationByIdForOwner(organizationId: string, ownerUserId: string): Promise<boolean> {
+    return deleteStoredOrganizationByIdForOwner(this.db, organizationId, ownerUserId);
   }
 
   // --- Collections ---

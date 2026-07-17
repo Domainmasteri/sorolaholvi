@@ -461,6 +461,8 @@ export interface WebBootstrapResponse {
   jwtUnsafeReason?: 'missing' | 'too_short' | null;
   jwtSecretMinLength?: number;
   registrationInviteRequired?: boolean;
+  registrationEnabled?: boolean;
+  emailDeliveryEnabled?: boolean;
   webAuthnAllowedOrigins?: string[];
   websiteIconsEnabled?: boolean;
 }
@@ -592,6 +594,21 @@ export interface AdminInvite {
   inviteLink?: string;
   status: string;
   expiresAt?: string;
+}
+
+export interface AdminEmailSettings {
+  enabled: boolean;
+  fromEmail: string;
+  fromName: string;
+  smtpHost: string;
+  smtpPort: number | null;
+  smtpUsername: string;
+  smtpPassword: string;
+}
+
+export interface AdminSystemSettings {
+  registrationEnabled: boolean;
+  email: AdminEmailSettings;
 }
 
 export type AuditLogCategory = 'auth' | 'security' | 'device' | 'data' | 'system';

@@ -191,6 +191,10 @@ function isOwnerOrAdmin(role: OrgUserRole): boolean {
   return role === 0 || role === 1;
 }
 
+function isOwner(role: OrgUserRole): boolean {
+  return role === 0;
+}
+
 /** Bitwarden-compatible organizationUserUserDetails response shape. */
 interface OrgUserDetailsResponse {
   id: string;
@@ -464,4 +468,37 @@ export async function handleConfirmOrganizationUser(
   });
 
   return jsonResponse({});
+}
+
+export async function handleDeleteOrganization(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const membership = await storage.getOrganizationByIdForUser(organizationId, userId);
+  if (!membership) {
+    return errorResponse('Not found', 404);
+  }
+  if (!isOwner(membership.orgUser.role)) {
+    return errorResponse('Only organization owners can delete the organization', 403);
+  }
+
+  const deleted = await storage.deleteOrganizationByIdForOwner(organizationId, userId);
+  if (!deleted) {
+    return errorResponse('Not found', 404);
+  }
+
+  await writeAuditEvent(storage, {
+    actorUserId: userId,
+    action: 'organization.delete',
+    category: 'security',
+    level: 'security',
+    targetType: 'organization',
+    targetId: organizationId,
+    metadata: auditRequestMetadata(request),
+  });
+
+  return new Response(null, { status: 204 });
 }

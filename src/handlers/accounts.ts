@@ -12,6 +12,7 @@ import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { buildAccountKeys } from '../utils/user-decryption';
 import { buildProfileResponse } from '../utils/profile-response';
 import { isYubiKeyEnabled, isYubiKeyPublicId, requestYubicoApiCredentials, verifyYubicoOtp, yubicoCredentialsFromEnv, yubiKeyPublicIdFromOtp, type YubicoApiCredentials } from '../utils/yubico-otp';
+import { isRegistrationEnabled } from '../utils/system-settings';
 
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
 const TWO_FACTOR_PROVIDER_YUBIKEY = 3;
@@ -384,6 +385,11 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
       metadata: { email: user.email, ...auditRequestMetadata(request) },
     });
     return jsonResponse({ success: true, role: user.role }, 200);
+  }
+
+  const registrationEnabled = await isRegistrationEnabled(storage);
+  if (!registrationEnabled) {
+    return errorResponse('Registration is disabled by the administrator', 403);
   }
 
   if (!inviteCode) {
