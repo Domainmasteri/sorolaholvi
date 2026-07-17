@@ -30,6 +30,13 @@ export default function AdminPage(props: AdminPageProps) {
   const [page, setPage] = useState(1);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const [emailChangeEnabled, setEmailChangeEnabled] = useState(true);
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [emailFromEmail, setEmailFromEmail] = useState('');
+  const [emailFromName, setEmailFromName] = useState('');
+  const [emailSmtpHost, setEmailSmtpHost] = useState('');
+  const [emailSmtpPort, setEmailSmtpPort] = useState('');
+  const [emailSmtpUsername, setEmailSmtpUsername] = useState('');
+  const [emailSmtpPassword, setEmailSmtpPassword] = useState('');
   const pageSize = 20;
   const formatExpiresAt = (x?: string) => (x ? new Date(x).toLocaleString() : t('txt_dash'));
   const totalPages = Math.max(1, Math.ceil(props.invites.length / pageSize));
@@ -76,6 +83,13 @@ export default function AdminPage(props: AdminPageProps) {
     if (!props.settings) return;
     setRegistrationEnabled(props.settings.registrationEnabled !== false);
     setEmailChangeEnabled(props.settings.emailChangeEnabled !== false);
+    setEmailEnabled(props.settings.email?.enabled === true);
+    setEmailFromEmail(props.settings.email?.fromEmail || '');
+    setEmailFromName(props.settings.email?.fromName || '');
+    setEmailSmtpHost(props.settings.email?.smtpHost || '');
+    setEmailSmtpPort(props.settings.email?.smtpPort != null ? String(props.settings.email.smtpPort) : '');
+    setEmailSmtpUsername(props.settings.email?.smtpUsername || '');
+    setEmailSmtpPassword(props.settings.email?.smtpPassword || '');
   }, [props.settings]);
 
   return (
@@ -123,6 +137,104 @@ export default function AdminPage(props: AdminPageProps) {
               onClick={() => void props.onSaveSettings({
                 registrationEnabled,
                 emailChangeEnabled,
+              })}
+            >
+              {t('txt_save')}
+            </button>
+          </div>
+        </div>
+      </section>
+      <section className="card">
+        <div className="section-head">
+          <h3>{t('txt_email_settings')}</h3>
+        </div>
+        <div className="stack">
+          <label className="field">
+            <span>{t('txt_email_delivery_enabled')}</span>
+            <input
+              type="checkbox"
+              checked={emailEnabled}
+              onChange={(e) => setEmailEnabled((e.currentTarget as HTMLInputElement).checked)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>{t('txt_from_email')}</span>
+            <input
+              className="input"
+              type="email"
+              value={emailFromEmail}
+              onInput={(e) => setEmailFromEmail((e.currentTarget as HTMLInputElement).value)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>{t('txt_from_name')}</span>
+            <input
+              className="input"
+              type="text"
+              value={emailFromName}
+              onInput={(e) => setEmailFromName((e.currentTarget as HTMLInputElement).value)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>{t('txt_smtp_host')}</span>
+            <input
+              className="input"
+              type="text"
+              value={emailSmtpHost}
+              onInput={(e) => setEmailSmtpHost((e.currentTarget as HTMLInputElement).value)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>{t('txt_smtp_port')}</span>
+            <input
+              className="input"
+              type="number"
+              value={emailSmtpPort}
+              min={1}
+              max={65535}
+              onInput={(e) => setEmailSmtpPort((e.currentTarget as HTMLInputElement).value)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>{t('txt_smtp_username')}</span>
+            <input
+              className="input"
+              type="text"
+              value={emailSmtpUsername}
+              onInput={(e) => setEmailSmtpUsername((e.currentTarget as HTMLInputElement).value)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>{t('txt_smtp_password')}</span>
+            <input
+              className="input"
+              type="password"
+              value={emailSmtpPassword}
+              onInput={(e) => setEmailSmtpPassword((e.currentTarget as HTMLInputElement).value)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <div className="actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={props.loading || props.settingsLoading}
+              onClick={() => void props.onSaveSettings({
+                email: {
+                  enabled: emailEnabled,
+                  fromEmail: emailFromEmail,
+                  fromName: emailFromName,
+                  smtpHost: emailSmtpHost,
+                  smtpPort: emailSmtpPort ? Number(emailSmtpPort) : null,
+                  smtpUsername: emailSmtpUsername,
+                  smtpPassword: emailSmtpPassword,
+                },
               })}
             >
               {t('txt_save')}
