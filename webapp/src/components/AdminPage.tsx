@@ -231,7 +231,7 @@ export default function AdminPage(props: AdminPageProps) {
                   fromEmail: emailFromEmail,
                   fromName: emailFromName,
                   smtpHost: emailSmtpHost,
-                  smtpPort: emailSmtpPort ? Number(emailSmtpPort) : null,
+                  smtpPort: emailSmtpPort ? (Number(emailSmtpPort) || null) : null,
                   smtpUsername: emailSmtpUsername,
                   smtpPassword: emailSmtpPassword,
                 },
