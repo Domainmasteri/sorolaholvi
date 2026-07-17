@@ -8,6 +8,7 @@ export const EMAIL_SMTP_HOST_CONFIG_KEY = 'globalSettings__email__smtpHost';
 export const EMAIL_SMTP_PORT_CONFIG_KEY = 'globalSettings__email__smtpPort';
 export const EMAIL_SMTP_USERNAME_CONFIG_KEY = 'globalSettings__email__smtpUsername';
 export const EMAIL_SMTP_PASSWORD_CONFIG_KEY = 'globalSettings__email__smtpPassword';
+export const EMAIL_CHANGE_ENABLED_CONFIG_KEY = 'globalSettings__account__allowEmailChange';
 
 export interface EmailSettings {
   enabled: boolean;
@@ -21,11 +22,13 @@ export interface EmailSettings {
 
 export interface SystemSettings {
   registrationEnabled: boolean;
+  emailChangeEnabled: boolean;
   email: EmailSettings;
 }
 
 export interface SystemSettingsUpdate {
   registrationEnabled?: boolean;
+  emailChangeEnabled?: boolean;
   email?: Partial<EmailSettings>;
 }
 
@@ -49,6 +52,7 @@ function readPort(raw: string | null): number | null {
 export async function getSystemSettings(storage: StorageService): Promise<SystemSettings> {
   const registrationDefault = true;
   const registrationEnabled = readBoolean(await storage.getConfigValue(REGISTRATION_ENABLED_CONFIG_KEY), registrationDefault);
+  const emailChangeEnabled = readBoolean(await storage.getConfigValue(EMAIL_CHANGE_ENABLED_CONFIG_KEY), true);
   const emailEnabled = readBoolean(await storage.getConfigValue(EMAIL_ENABLED_CONFIG_KEY), false);
   const email: EmailSettings = {
     enabled: emailEnabled,
@@ -61,6 +65,7 @@ export async function getSystemSettings(storage: StorageService): Promise<System
   };
   return {
     registrationEnabled,
+    emailChangeEnabled,
     email,
   };
 }
@@ -81,6 +86,9 @@ export async function saveSystemSettings(storage: StorageService, update: System
     registrationEnabled: typeof update.registrationEnabled === 'boolean'
       ? update.registrationEnabled
       : current.registrationEnabled,
+    emailChangeEnabled: typeof update.emailChangeEnabled === 'boolean'
+      ? update.emailChangeEnabled
+      : current.emailChangeEnabled,
     email: {
       enabled: typeof update.email?.enabled === 'boolean'
         ? update.email.enabled
@@ -109,6 +117,7 @@ export async function saveSystemSettings(storage: StorageService, update: System
   };
 
   await storage.setConfigValue(REGISTRATION_ENABLED_CONFIG_KEY, next.registrationEnabled ? 'true' : 'false');
+  await storage.setConfigValue(EMAIL_CHANGE_ENABLED_CONFIG_KEY, next.emailChangeEnabled ? 'true' : 'false');
   await storage.setConfigValue(EMAIL_ENABLED_CONFIG_KEY, next.email.enabled ? 'true' : 'false');
   await storage.setConfigValue(EMAIL_FROM_EMAIL_CONFIG_KEY, next.email.fromEmail);
   await storage.setConfigValue(EMAIL_FROM_NAME_CONFIG_KEY, next.email.fromName);

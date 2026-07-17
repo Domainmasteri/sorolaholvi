@@ -21,7 +21,7 @@ function mapUserRow(row: any): User {
     kdfMemory: row.kdf_memory ?? undefined,
     kdfParallelism: row.kdf_parallelism ?? undefined,
     securityStamp: row.security_stamp,
-    role: row.role === 'admin' ? 'admin' : 'user',
+    role: row.role === 'owner' ? 'owner' : row.role === 'admin' ? 'admin' : 'user',
     status: row.status === 'banned' ? 'banned' : 'active',
     verifyDevices: row.verify_devices == null ? false : !!row.verify_devices,
     totpSecret: row.totp_secret ?? null,

@@ -128,7 +128,8 @@ const AUTH_ROUTES: ReadonlySet<string> = new Set(AUTH_ROUTE_PATHS);
 const APP_ROUTES: ReadonlySet<string> = new Set(APP_ROUTE_PATHS);
 
 function isAdminProfile(profile: Profile | null): profile is Profile {
-  return String(profile?.role || '').toLowerCase() === 'admin';
+  const role = String(profile?.role || '').toLowerCase();
+  return role === 'owner' || role === 'admin';
 }
 
 function normalizeRoutePath(path: string): string {
@@ -2096,6 +2097,7 @@ export default function App() {
     onDeleteInvalidInvites: adminActions.deleteInvalidInvites,
     onDeleteAllInvites: adminActions.deleteAllInvites,
     onToggleUserStatus: adminActions.toggleUserStatus,
+    onSetUserRole: adminActions.updateUserRole,
     onDeleteUser: adminActions.deleteUser,
     onDeleteInvite: adminActions.deleteInvite,
     onSaveAdminSettings: adminActions.saveSystemSettings,

@@ -62,6 +62,19 @@ export async function setUserStatus(
   if (!resp.ok) throw new Error('Update user status failed');
 }
 
+export async function setUserRole(
+  authedFetch: AuthedFetch,
+  userId: string,
+  role: 'owner' | 'admin' | 'user'
+): Promise<void> {
+  const resp = await authedFetch(`/api/admin/users/${encodeURIComponent(userId)}/role`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  });
+  if (!resp.ok) throw new Error('Update user role failed');
+}
+
 export async function deleteUser(authedFetch: AuthedFetch, userId: string): Promise<void> {
   const resp = await authedFetch(`/api/admin/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
   if (!resp.ok) throw new Error('Delete user failed');

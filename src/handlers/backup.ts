@@ -53,7 +53,7 @@ import { verifyPasskeyUserVerificationToken } from '../utils/user-verification-t
 import { unzipSync } from 'fflate';
 
 function isAdmin(user: User): boolean {
-  return user.role === 'admin' && user.status === 'active';
+  return (user.role === 'owner' || user.role === 'admin') && user.status === 'active';
 }
 
 function parseRequestContentLength(request: Request): number | null {

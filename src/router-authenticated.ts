@@ -113,7 +113,7 @@ import {
   handleDeleteCollection,
   handleUpdateCollectionUsers,
 } from './handlers/collections';
-import { isEmailDeliveryEnabled } from './utils/system-settings';
+import { getSystemSettings, isEmailDeliveryEnabled } from './utils/system-settings';
 import { StorageService } from './services/storage';
 
 export async function handleAuthenticatedRoute(
@@ -154,11 +154,15 @@ export async function handleAuthenticatedRoute(
   ]);
   if (mailBackedAccountPaths.has(path) && (method === 'POST' || method === 'PUT')) {
     const storage = new StorageService(env.DB);
+    const settings = await getSystemSettings(storage);
+    if (!settings.emailChangeEnabled) {
+      return unsupportedResponse('Email address changes are disabled by the administrator.');
+    }
     const emailDeliveryEnabled = await isEmailDeliveryEnabled(storage);
     if (emailDeliveryEnabled) {
       return unsupportedResponse('Email delivery is not supported by this server.');
     }
-    return unsupportedResponse('Email delivery is disabled by the administrator.');
+    return unsupportedResponse('Email changes require a configured email delivery channel, which is currently disabled by the administrator.');
   }
 
   const emailTwoFactorPaths = new Set([

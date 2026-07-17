@@ -266,7 +266,7 @@ function keysResponse(user: User): Record<string, unknown> {
 }
 
 // POST /api/accounts/register
-// - First user becomes admin.
+// - First user becomes owner.
 // - Any subsequent user must provide a valid inviteCode.
 export async function handleRegister(request: Request, env: Env): Promise<Response> {
   const storage = new StorageService(env.DB);
@@ -369,7 +369,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
 
   const userCount = await storage.getUserCount();
   if (userCount === 0) {
-    user.role = 'admin';
+    user.role = 'owner';
     const created = await storage.createFirstUser(user);
     if (!created) {
       return errorResponse('Registration is temporarily unavailable, retry once', 409);
@@ -377,7 +377,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     await storage.setRegistered();
     await writeAuditEvent(storage, {
       actorUserId: user.id,
-      action: 'user.register.first_admin',
+      action: 'user.register.first_owner',
       targetType: 'user',
       targetId: user.id,
       category: 'security',

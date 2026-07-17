@@ -300,7 +300,7 @@ function buildTransientProfile(token: TokenSuccess, email: string, fallbackProfi
     name: String(claims.name || normalizedEmail || ''),
     key: String(token.Key || ''),
     privateKey: token.PrivateKey ?? null,
-    role: fallbackProfile?.role === 'admin' ? 'admin' : 'user',
+    role: fallbackProfile?.role === 'owner' || fallbackProfile?.role === 'admin' ? fallbackProfile.role : 'user',
     premium: !!claims.premium,
     accountKeys,
     masterPasswordHint: fallbackProfile?.masterPasswordHint ?? null,

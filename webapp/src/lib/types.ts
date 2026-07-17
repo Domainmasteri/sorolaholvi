@@ -18,7 +18,7 @@ export interface Profile {
   yubikeyEnabled?: boolean;
   privateKey?: string | null;
   publicKey?: string | null;
-  role: 'admin' | 'user';
+  role: 'owner' | 'admin' | 'user';
   [k: string]: unknown;
 }
 
@@ -608,6 +608,7 @@ export interface AdminEmailSettings {
 
 export interface AdminSystemSettings {
   registrationEnabled: boolean;
+  emailChangeEnabled: boolean;
   email: AdminEmailSettings;
 }
 

@@ -159,6 +159,7 @@ export interface AppMainRoutesProps {
   onDeleteInvalidInvites: () => Promise<void>;
   onDeleteAllInvites: () => Promise<void>;
   onToggleUserStatus: (userId: string, status: 'active' | 'banned') => Promise<void>;
+  onSetUserRole: (userId: string, role: 'owner' | 'admin' | 'user') => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onDeleteInvite: (code: string) => Promise<void>;
   onSaveAdminSettings?: (settings: Partial<AdminSystemSettings>) => Promise<void>;
@@ -183,7 +184,8 @@ export interface AppMainRoutesProps {
 export default function AppMainRoutes(props: AppMainRoutesProps) {
   const importRoutePaths = [props.importRoute, '/tools/import', '/tools/import-export', '/tools/import-data', '/import', '/import-export'] as const;
   const deviceManagementRoutePaths = ['/security/devices', '/settings/security/device-management'] as const;
-  const isAdmin = String(props.profile?.role || '').toLowerCase() === 'admin';
+  const profileRole = String(props.profile?.role || '').toLowerCase();
+  const isAdmin = profileRole === 'owner' || profileRole === 'admin';
   const importPageContent = (
     <Suspense fallback={<RouteContentFallback />}>
       <ImportPage
@@ -459,6 +461,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
           <Suspense fallback={<RouteContentFallback />}>
             <AdminPage
               currentUserId={props.profile?.id || ''}
+              currentUserRole={props.profile?.role || 'user'}
               users={props.users}
               invites={props.invites}
               settings={props.adminSettings || null}
@@ -470,6 +473,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
               onDeleteInvalidInvites={props.onDeleteInvalidInvites}
               onDeleteAllInvites={props.onDeleteAllInvites}
               onToggleUserStatus={props.onToggleUserStatus}
+              onSetUserRole={props.onSetUserRole}
               onDeleteUser={props.onDeleteUser}
               onDeleteInvite={props.onDeleteInvite}
               onSaveSettings={props.onSaveAdminSettings || (async () => {})}

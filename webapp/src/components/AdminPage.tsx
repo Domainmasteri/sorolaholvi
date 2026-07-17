@@ -7,6 +7,7 @@ import { t } from '@/lib/i18n';
 
 interface AdminPageProps {
   currentUserId: string;
+  currentUserRole: string;
   users: AdminUser[];
   invites: AdminInvite[];
   settings: AdminSystemSettings | null;
@@ -18,6 +19,7 @@ interface AdminPageProps {
   onDeleteInvalidInvites: () => Promise<void>;
   onDeleteAllInvites: () => Promise<void>;
   onToggleUserStatus: (userId: string, currentStatus: 'active' | 'banned') => Promise<void>;
+  onSetUserRole: (userId: string, role: 'owner' | 'admin' | 'user') => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onDeleteInvite: (code: string) => Promise<void>;
   onSaveSettings: (settings: Partial<AdminSystemSettings>) => Promise<void>;
@@ -27,6 +29,7 @@ export default function AdminPage(props: AdminPageProps) {
   const [inviteHours, setInviteHours] = useState(168);
   const [page, setPage] = useState(1);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [emailChangeEnabled, setEmailChangeEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [fromEmail, setFromEmail] = useState('');
   const [fromName, setFromName] = useState('');
@@ -42,10 +45,19 @@ export default function AdminPage(props: AdminPageProps) {
 
   const roleText = (role: string) => {
     const normalized = String(role || '').toLowerCase();
+    if (normalized === 'owner') return 'Owner';
     if (normalized === 'admin') return t('txt_role_admin');
     if (normalized === 'user') return t('txt_role_user');
     return role || '-';
   };
+
+  const normalizeUserRole = (role: string): 'owner' | 'admin' | 'user' | null => {
+    const normalized = String(role || '').toLowerCase();
+    if (normalized === 'owner' || normalized === 'admin' || normalized === 'user') return normalized;
+    return null;
+  };
+
+  const actorRole = normalizeUserRole(props.currentUserRole);
 
   const statusText = (status: string) => {
     const normalized = String(status || '').toLowerCase();
@@ -64,6 +76,7 @@ export default function AdminPage(props: AdminPageProps) {
   useEffect(() => {
     if (!props.settings) return;
     setRegistrationEnabled(props.settings.registrationEnabled !== false);
+    setEmailChangeEnabled(props.settings.emailChangeEnabled !== false);
     setEmailEnabled(!!props.settings.email?.enabled);
     setFromEmail(props.settings.email?.fromEmail || '');
     setFromName(props.settings.email?.fromName || '');
@@ -98,6 +111,15 @@ export default function AdminPage(props: AdminPageProps) {
               type="checkbox"
               checked={registrationEnabled}
               onChange={(e) => setRegistrationEnabled((e.currentTarget as HTMLInputElement).checked)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>Allow User Email Changes</span>
+            <input
+              type="checkbox"
+              checked={emailChangeEnabled}
+              onChange={(e) => setEmailChangeEnabled((e.currentTarget as HTMLInputElement).checked)}
               disabled={props.loading || props.settingsLoading}
             />
           </label>
@@ -143,6 +165,7 @@ export default function AdminPage(props: AdminPageProps) {
               disabled={props.loading || props.settingsLoading}
               onClick={() => void props.onSaveSettings({
                 registrationEnabled,
+                emailChangeEnabled,
                 email: {
                   enabled: emailEnabled,
                   fromEmail,
@@ -179,6 +202,13 @@ export default function AdminPage(props: AdminPageProps) {
           <tbody>
             {props.users.map((user) => {
               const toggleableStatus = normalizeToggleableStatus(user.status);
+              const userRole = normalizeUserRole(user.role);
+              const canManageRole = actorRole === 'owner'
+                ? user.id !== props.currentUserId
+                : actorRole === 'admin'
+                  ? user.id !== props.currentUserId && userRole !== 'owner'
+                  : false;
+              const canDeleteUser = user.id !== props.currentUserId && userRole !== 'owner';
               return (
                 <tr key={user.id}>
                 <td data-label={t('txt_email')}>{user.email}</td>
@@ -190,7 +220,7 @@ export default function AdminPage(props: AdminPageProps) {
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      disabled={user.id === props.currentUserId || !toggleableStatus}
+                      disabled={user.id === props.currentUserId || !toggleableStatus || (actorRole !== 'owner' && userRole === 'owner')}
                       onClick={() => {
                         if (!toggleableStatus) return;
                         void props.onToggleUserStatus(user.id, toggleableStatus);
@@ -199,7 +229,22 @@ export default function AdminPage(props: AdminPageProps) {
                       {user.status === 'active' ? <UserX size={14} className="btn-icon" /> : <UserCheck size={14} className="btn-icon" />}
                       {user.status === 'active' ? t('txt_ban') : t('txt_unban')}
                     </button>
-                    {user.role !== 'admin' && (
+                    {canManageRole && userRole && (
+                      <select
+                        className="input"
+                        value={userRole}
+                        onChange={(e) => {
+                          const nextRole = normalizeUserRole((e.currentTarget as HTMLSelectElement).value);
+                          if (!nextRole || nextRole === userRole) return;
+                          void props.onSetUserRole(user.id, nextRole);
+                        }}
+                      >
+                        {actorRole === 'owner' && <option value="owner">Owner</option>}
+                        <option value="admin">Admin</option>
+                        <option value="user">User</option>
+                      </select>
+                    )}
+                    {canDeleteUser && (
                       <button type="button" className="btn btn-danger" onClick={() => void props.onDeleteUser(user.id)}>
                         <Trash2 size={14} className="btn-icon" />
                         {t('txt_delete')}

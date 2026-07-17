@@ -1,5 +1,5 @@
 import { useMemo } from 'preact/hooks';
-import { createInvite, deleteAllInvites, deleteInvalidInvites, deleteInvite, deleteUser, saveAdminSettings, setUserStatus } from '@/lib/api/admin';
+import { createInvite, deleteAllInvites, deleteInvalidInvites, deleteInvite, deleteUser, saveAdminSettings, setUserRole, setUserStatus } from '@/lib/api/admin';
 import { t } from '@/lib/i18n';
 import type { AppConfirmState } from '@/components/AppGlobalOverlays';
 import type { AuthedFetch } from '@/lib/api/shared';
@@ -40,6 +40,16 @@ export default function useAdminActions(options: UseAdminActionsOptions) {
       async toggleUserStatus(userId: string, status: 'active' | 'banned') {
         try {
           await setUserStatus(authedFetch, userId, status === 'active' ? 'banned' : 'active');
+          await refetchUsers();
+          onNotify('success', t('txt_user_status_updated'));
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_update_user_status_failed'));
+        }
+      },
+
+      async updateUserRole(userId: string, role: 'owner' | 'admin' | 'user') {
+        try {
+          await setUserRole(authedFetch, userId, role);
           await refetchUsers();
           onNotify('success', t('txt_user_status_updated'));
         } catch (error) {
