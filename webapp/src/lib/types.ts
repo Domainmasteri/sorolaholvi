@@ -409,8 +409,23 @@ export interface ListResponse<T> {
   continuationToken?: string | null;
 }
 
-export type OrganizationMemberStatus = -1 | 0 | 1 | 2;
-export type OrganizationMemberRole = 0 | 1 | 2 | 3 | 4;
+export const ORGANIZATION_MEMBER_STATUS = {
+  REVOKED: -1,
+  INVITED: 0,
+  ACCEPTED: 1,
+  CONFIRMED: 2,
+} as const;
+
+export const ORGANIZATION_MEMBER_ROLE = {
+  OWNER: 0,
+  ADMIN: 1,
+  USER: 2,
+  MANAGER: 3,
+  CUSTOM: 4,
+} as const;
+
+export type OrganizationMemberStatus = typeof ORGANIZATION_MEMBER_STATUS[keyof typeof ORGANIZATION_MEMBER_STATUS];
+export type OrganizationMemberRole = typeof ORGANIZATION_MEMBER_ROLE[keyof typeof ORGANIZATION_MEMBER_ROLE];
 
 export interface Organization {
   id: string;

@@ -79,11 +79,7 @@ export async function acceptOrganizationInvite(
 ): Promise<void> {
   const resp = await authedFetch(
     `/api/organizations/${encodeURIComponent(organizationId)}/users/${encodeURIComponent(orgUserId)}/accept`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    }
+    { method: 'POST' }
   );
   if (!resp.ok) await throwApiError(resp, 'Failed to accept invite');
 }

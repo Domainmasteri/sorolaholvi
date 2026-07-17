@@ -15,7 +15,14 @@ import {
   updateOrganizationCollectionUsers,
 } from '@/lib/api/organizations';
 import { t } from '@/lib/i18n';
-import type { Organization, OrganizationCollection, OrganizationMemberRole, OrganizationUserDetails } from '@/lib/types';
+import {
+  ORGANIZATION_MEMBER_ROLE,
+  ORGANIZATION_MEMBER_STATUS,
+  type Organization,
+  type OrganizationCollection,
+  type OrganizationMemberRole,
+  type OrganizationUserDetails,
+} from '@/lib/types';
 
 interface OrganizationsPageProps {
   authedFetch: AuthedFetch;
@@ -24,18 +31,18 @@ interface OrganizationsPageProps {
 }
 
 function roleLabel(role: number): string {
-  if (role === 0) return 'Owner';
-  if (role === 1) return 'Admin';
-  if (role === 2) return t('txt_role_user');
-  if (role === 3) return 'Manager';
+  if (role === ORGANIZATION_MEMBER_ROLE.OWNER) return 'Owner';
+  if (role === ORGANIZATION_MEMBER_ROLE.ADMIN) return 'Admin';
+  if (role === ORGANIZATION_MEMBER_ROLE.USER) return t('txt_role_user');
+  if (role === ORGANIZATION_MEMBER_ROLE.MANAGER) return 'Manager';
   return 'Custom';
 }
 
 function statusLabel(status: number): string {
-  if (status === -1) return 'Revoked';
-  if (status === 0) return 'Invited';
-  if (status === 1) return 'Accepted';
-  if (status === 2) return 'Confirmed';
+  if (status === ORGANIZATION_MEMBER_STATUS.REVOKED) return 'Revoked';
+  if (status === ORGANIZATION_MEMBER_STATUS.INVITED) return 'Invited';
+  if (status === ORGANIZATION_MEMBER_STATUS.ACCEPTED) return 'Accepted';
+  if (status === ORGANIZATION_MEMBER_STATUS.CONFIRMED) return 'Confirmed';
   return String(status);
 }
 
@@ -51,10 +58,13 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [createEmail, setCreateEmail] = useState('');
   const [createKey, setCreateKey] = useState('');
   const [inviteEmails, setInviteEmails] = useState('');
-  const [inviteRole, setInviteRole] = useState<OrganizationMemberRole>(2);
+  const [inviteRole, setInviteRole] = useState<OrganizationMemberRole>(ORGANIZATION_MEMBER_ROLE.USER);
   const [inviteAccessAll, setInviteAccessAll] = useState(false);
   const [confirmKeys, setConfirmKeys] = useState<Record<string, string>>({});
   const [newCollectionName, setNewCollectionName] = useState('');
+  const [collectionNames, setCollectionNames] = useState<Record<string, string>>({});
+  const [collectionUserIds, setCollectionUserIds] = useState<Record<string, string>>({});
+  const normalizedProfileEmail = props.profileEmail.trim().toLowerCase();
 
   const selectedOrganization = useMemo(
     () => organizations.find((org) => org.id === selectedOrganizationId) || null,
@@ -132,6 +142,16 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
       cancelled = true;
     };
   }, [selectedOrganizationId]);
+
+  useEffect(() => {
+    setCollectionNames((current) => {
+      const next = { ...current };
+      for (const collection of collections) {
+        if (next[collection.id] === undefined) next[collection.id] = collection.name || '';
+      }
+      return next;
+    });
+  }, [collections]);
 
   async function withBusy(action: () => Promise<void>): Promise<void> {
     setBusy(true);
@@ -267,11 +287,11 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
               disabled={busy || !selectedOrganizationId}
               onChange={(event) => setInviteRole(Number((event.currentTarget as HTMLSelectElement).value) as OrganizationMemberRole)}
             >
-              <option value="0">Owner</option>
-              <option value="1">Admin</option>
-              <option value="2">{t('txt_role_user')}</option>
-              <option value="3">Manager</option>
-              <option value="4">Custom</option>
+              <option value={String(ORGANIZATION_MEMBER_ROLE.OWNER)}>Owner</option>
+              <option value={String(ORGANIZATION_MEMBER_ROLE.ADMIN)}>Admin</option>
+              <option value={String(ORGANIZATION_MEMBER_ROLE.USER)}>{t('txt_role_user')}</option>
+              <option value={String(ORGANIZATION_MEMBER_ROLE.MANAGER)}>Manager</option>
+              <option value={String(ORGANIZATION_MEMBER_ROLE.CUSTOM)}>Custom</option>
             </select>
           </label>
           <label className="field">
@@ -320,8 +340,8 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
           </thead>
           <tbody>
             {members.map((member) => {
-              const canAccept = member.status === 0 && member.email.toLowerCase() === props.profileEmail.toLowerCase();
-              const canConfirm = member.status === 1;
+              const canAccept = member.status === ORGANIZATION_MEMBER_STATUS.INVITED && member.email.toLowerCase() === normalizedProfileEmail;
+              const canConfirm = member.status === ORGANIZATION_MEMBER_STATUS.ACCEPTED;
               const confirmKey = confirmKeys[member.id] || '';
               return (
                 <tr key={member.id}>
@@ -432,38 +452,55 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                 <td data-label="ID">{collection.id}</td>
                 <td data-label={t('txt_actions')}>
                   <div className="actions">
+                    <input
+                      className="input small"
+                      placeholder={t('txt_name')}
+                      value={collectionNames[collection.id] ?? collection.name}
+                      onInput={(event) =>
+                        setCollectionNames((current) => ({
+                          ...current,
+                          [collection.id]: (event.currentTarget as HTMLInputElement).value,
+                        }))}
+                    />
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      disabled={busy || !selectedOrganizationId}
-                      onClick={() => {
-                        const nextName = window.prompt('Collection name', collection.name);
-                        if (!nextName || !selectedOrganizationId) return;
-                        void withBusy(async () => {
-                          await updateOrganizationCollection(props.authedFetch, selectedOrganizationId, collection.id, {
-                            name: nextName.trim(),
-                            externalId: collection.externalId || null,
-                          });
-                          await loadSelectedOrganizationDetails(selectedOrganizationId);
-                          props.onNotify('success', 'Collection updated');
+                      disabled={busy || !selectedOrganizationId || !(collectionNames[collection.id] || '').trim()}
+                      onClick={() => void withBusy(async () => {
+                        if (!selectedOrganizationId) return;
+                        await updateOrganizationCollection(props.authedFetch, selectedOrganizationId, collection.id, {
+                          name: String(collectionNames[collection.id] || collection.name).trim(),
+                          externalId: collection.externalId || null,
                         });
-                      }}
+                        await loadSelectedOrganizationDetails(selectedOrganizationId);
+                        props.onNotify('success', 'Collection updated');
+                      })}
                     >
                       {t('txt_edit')}
                     </button>
+                    <input
+                      className="input small"
+                      placeholder="orgUserId1,orgUserId2"
+                      value={collectionUserIds[collection.id] || ''}
+                      onInput={(event) =>
+                        setCollectionUserIds((current) => ({
+                          ...current,
+                          [collection.id]: (event.currentTarget as HTMLInputElement).value,
+                        }))}
+                    />
                     <button
                       type="button"
                       className="btn btn-secondary"
                       disabled={busy || !selectedOrganizationId}
-                      onClick={() => {
-                        const value = window.prompt('Org user IDs (comma separated)', '');
-                        if (value === null || !selectedOrganizationId) return;
-                        const userIds = value.split(',').map((entry) => entry.trim()).filter(Boolean);
-                        void withBusy(async () => {
-                          await updateOrganizationCollectionUsers(props.authedFetch, selectedOrganizationId, collection.id, userIds);
-                          props.onNotify('success', 'Collection access updated');
-                        });
-                      }}
+                      onClick={() => void withBusy(async () => {
+                        if (!selectedOrganizationId) return;
+                        const userIds = String(collectionUserIds[collection.id] || '')
+                          .split(',')
+                          .map((entry) => entry.trim())
+                          .filter(Boolean);
+                        await updateOrganizationCollectionUsers(props.authedFetch, selectedOrganizationId, collection.id, userIds);
+                        props.onNotify('success', 'Collection access updated');
+                      })}
                     >
                       Access
                     </button>
