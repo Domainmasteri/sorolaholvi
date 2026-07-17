@@ -50,6 +50,12 @@ export default function AdminPage(props: AdminPageProps) {
     return null;
   };
 
+  const canManageUserRole = (actor: 'owner' | 'admin' | 'user' | null, userId: string, currentUserId: string, targetRole: 'owner' | 'admin' | 'user' | null): boolean => {
+    if (actor === 'owner') return userId !== currentUserId;
+    if (actor === 'admin') return userId !== currentUserId && targetRole !== 'owner';
+    return false;
+  };
+
   const actorRole = normalizeUserRole(props.currentUserRole);
 
   const statusText = (status: string) => {
@@ -145,11 +151,7 @@ export default function AdminPage(props: AdminPageProps) {
             {props.users.map((user) => {
               const toggleableStatus = normalizeToggleableStatus(user.status);
               const userRole = normalizeUserRole(user.role);
-              const canManageRole = actorRole === 'owner'
-                ? user.id !== props.currentUserId
-                : actorRole === 'admin'
-                  ? user.id !== props.currentUserId && userRole !== 'owner'
-                  : false;
+              const canManageRole = canManageUserRole(actorRole, user.id, props.currentUserId, userRole);
               const canDeleteUser = user.id !== props.currentUserId && userRole !== 'owner';
               return (
                 <tr key={user.id}>

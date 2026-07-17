@@ -449,18 +449,8 @@ export async function handleAdminSetUserRole(
   if (target.id === actorUser.id) {
     return errorResponse('You cannot change your own role', 400);
   }
-  if (target.role === 'owner' && actorUser.role !== 'owner') {
-    return errorResponse('Only an owner can manage an owner account', 403);
-  }
   if (nextRole === 'owner' && actorUser.role !== 'owner') {
     return errorResponse('Only an owner can assign owner role', 403);
-  }
-  if (target.role === 'owner' && nextRole !== 'owner') {
-    const users = await storage.getAllUsers();
-    const ownerCount = users.filter((user) => user.role === 'owner').length;
-    if (ownerCount <= 1) {
-      return errorResponse('At least one owner is required', 400);
-    }
   }
   if (target.role === nextRole) {
     return jsonResponse({

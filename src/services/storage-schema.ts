@@ -227,13 +227,13 @@ async function ensureOwnerUserExists(db: D1Database): Promise<void> {
   const owner = await db.prepare("SELECT id FROM users WHERE role = 'owner' LIMIT 1").first<{ id: string }>();
   if (owner?.id) return;
 
-  const admin = await db
+  const adminCandidate = await db
     .prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1")
     .first<{ id: string }>();
   const fallback = await db
     .prepare('SELECT id FROM users ORDER BY created_at ASC LIMIT 1')
     .first<{ id: string }>();
-  const candidateId = admin?.id || fallback?.id;
+  const candidateId = adminCandidate?.id || fallback?.id;
   if (!candidateId) return;
 
   await db
