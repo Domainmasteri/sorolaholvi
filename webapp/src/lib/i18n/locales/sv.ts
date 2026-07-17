@@ -1,4 +1,4 @@
-// Complete Swedish locale. Translate the values in this file to add a new language. Keep keys and placeholders unchanged.
+// Swedish locale. Keep keys and placeholders unchanged.
 const sv: Record<string, string> = {
   "nav_account_settings": "Kontoinställningar",
   "nav_admin_panel": "Administratörspanel",
@@ -1444,7 +1444,24 @@ const sv: Record<string, string> = {
   "txt_auth_request_approved": "Enhetsinloggning godkänd",
   "txt_auth_request_denied": "Enhetsinloggning nekad",
   "txt_auth_request_missing_public_key": "Inloggningsförfrågan för enhet saknar en offentlig nyckel",
-  "txt_ip_address": "IP-adress"
+  "txt_ip_address": "IP-adress",
+  "txt_server_error_not_found": "Hittades inte",
+  "txt_server_error_invalid_json": "Ogiltig JSON",
+  "txt_server_error_organization_name_required": "Organisationens namn är obligatoriskt",
+  "txt_server_error_organization_key_required": "Organisationsnyckeln är obligatorisk",
+  "txt_server_error_no_permission_invite_members": "Du har inte behörighet att bjuda in medlemmar",
+  "txt_server_error_at_least_one_email_required": "Minst en e-postadress krävs",
+  "txt_server_error_invalid_email_in_list": "Ogiltig e-postadress i listan",
+  "txt_server_error_invite_wrong_email": "Den här inbjudan gäller en annan e-postadress",
+  "txt_server_error_invite_no_longer_valid": "Inbjudan är inte längre giltig",
+  "txt_server_error_no_permission_confirm_members": "Du har inte behörighet att bekräfta medlemmar",
+  "txt_server_error_user_not_accepted_invite": "Användaren har inte accepterat inbjudan",
+  "txt_server_error_no_permission_create_collections": "Du har inte behörighet att skapa samlingar",
+  "txt_server_error_collection_name_required": "Samlingens namn är obligatoriskt",
+  "txt_server_error_no_permission_update_collections": "Du har inte behörighet att uppdatera samlingar",
+  "txt_server_error_no_permission_delete_collections": "Du har inte behörighet att ta bort samlingar",
+  "txt_server_error_no_permission_manage_collection_access": "Du har inte behörighet att hantera åtkomst till samlingar",
+  "txt_server_error_expected_array_of_user_grants": "Ett fält med användarrättigheter förväntades"
 };
 
 export default sv;

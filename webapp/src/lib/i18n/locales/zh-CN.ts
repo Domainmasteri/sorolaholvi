@@ -1,4 +1,4 @@
-// Complete Simplified Chinese locale. Keep keys and placeholders unchanged.
+// Simplified Chinese locale. Keep keys and placeholders unchanged.
 const zhCN: Record<string, string> = {
   "nav_account_settings": "账户设置",
   "nav_admin_panel": "用户管理",
@@ -1444,7 +1444,24 @@ const zhCN: Record<string, string> = {
   "txt_auth_request_approved": "已批准设备登录",
   "txt_auth_request_denied": "已拒绝设备登录",
   "txt_auth_request_missing_public_key": "设备登录请求缺少公钥",
-  "txt_ip_address": "IP 地址"
+  "txt_ip_address": "IP 地址",
+  "txt_server_error_not_found": "未找到",
+  "txt_server_error_invalid_json": "无效的JSON",
+  "txt_server_error_organization_name_required": "组织名称为必填项",
+  "txt_server_error_organization_key_required": "组织密钥为必填项",
+  "txt_server_error_no_permission_invite_members": "您没有权限邀请成员",
+  "txt_server_error_at_least_one_email_required": "至少需要一个电子邮件地址",
+  "txt_server_error_invalid_email_in_list": "列表中的电子邮件地址无效",
+  "txt_server_error_invite_wrong_email": "此邀请针对的是不同的电子邮件地址",
+  "txt_server_error_invite_no_longer_valid": "邀请已不再有效",
+  "txt_server_error_no_permission_confirm_members": "您没有权限确认成员",
+  "txt_server_error_user_not_accepted_invite": "用户尚未接受邀请",
+  "txt_server_error_no_permission_create_collections": "您没有权限创建集合",
+  "txt_server_error_collection_name_required": "集合名称为必填项",
+  "txt_server_error_no_permission_update_collections": "您没有权限更新集合",
+  "txt_server_error_no_permission_delete_collections": "您没有权限删除集合",
+  "txt_server_error_no_permission_manage_collection_access": "您没有权限管理集合访问权限",
+  "txt_server_error_expected_array_of_user_grants": "期望一个用户授权数组"
 };
 
 export default zhCN;

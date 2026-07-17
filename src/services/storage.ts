@@ -1,4 +1,4 @@
-import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, TrustedDeviceTokenSummary, RefreshTokenRecord, CustomEquivalentDomain, AccountPasskeyChallenge, AccountPasskeyChallengeScope, AccountPasskeyCredential, AuthRequestRecord } from '../types';
+import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, TrustedDeviceTokenSummary, RefreshTokenRecord, CustomEquivalentDomain, AccountPasskeyChallenge, AccountPasskeyChallengeScope, AccountPasskeyCredential, AuthRequestRecord, Organization, OrganizationUser, Collection, CollectionUser } from '../types';
 import { LIMITS } from '../config/limits';
 import { ensurePushInstallationCredentials } from './push-relay';
 import { ensureStorageSchema } from './storage-schema';
@@ -155,6 +155,32 @@ import {
   updateAccountPasskeyCounter as updateStoredAccountPasskeyCounter,
   updateAccountPasskeyEncryption as updateStoredAccountPasskeyEncryption,
 } from './storage-account-passkey-repo';
+import {
+  createOrganizationWithOwner as createStoredOrganizationWithOwner,
+  getOrganizationsByUserId as getStoredOrganizationsByUserId,
+  getOrganizationByIdForUser as getStoredOrganizationByIdForUser,
+  type OrgUserDetails,
+  getOrgUsersByOrgId as getStoredOrgUsersByOrgId,
+  getOrgUserById as getStoredOrgUserById,
+  getOrgUserByOrgAndEmail as getStoredOrgUserByOrgAndEmail,
+  insertOrgUser as insertStoredOrgUser,
+  acceptOrgUserInvite as acceptStoredOrgUserInvite,
+  confirmOrgUser as confirmStoredOrgUser,
+} from './storage-organization-repo';
+import {
+  collectionToResponse,
+  getAccessibleCollections as getStoredAccessibleCollections,
+  getCollectionById as getStoredCollectionById,
+  insertCollection as insertStoredCollection,
+  updateCollection as updateStoredCollection,
+  deleteCollection as deleteStoredCollection,
+  getCollectionUsers as getStoredCollectionUsers,
+  replaceCollectionUsers as replaceStoredCollectionUsers,
+  getCollectionIdsForCipher as getStoredCollectionIdsForCipher,
+  getCollectionIdsByCipherIds as getStoredCollectionIdsByCipherIds,
+  replaceCipherCollections as replaceStoredCipherCollections,
+  getAccessibleCipherIds as getStoredAccessibleCipherIds,
+} from './storage-collection-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
@@ -162,8 +188,8 @@ const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
 // Bump this whenever src/services/storage-schema.ts or migrations/0001_init.sql
 // changes. Existing D1 installs only rerun ensureStorageSchema() when this value
 // differs from config.schema.version.
-const STORAGE_SCHEMA_VERSION = '2026-07-05-passkey-2fa';
-const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays'] as const;
+const STORAGE_SCHEMA_VERSION = '2026-07-16-collections';
+const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays', 'organizations', 'organization_users', 'collections', 'collection_users', 'collection_items'] as const;
 
 // D1-backed storage.
 // Contract:
@@ -948,4 +974,99 @@ export class StorageService {
     }
     return result.consumed;
   }
+
+  // --- Organizations ---
+
+  async createOrganizationWithOwner(org: Organization, orgUser: OrganizationUser): Promise<void> {
+    await createStoredOrganizationWithOwner(this.db, org, orgUser);
+  }
+
+  async getOrganizationsByUserId(userId: string): Promise<Array<{ org: Organization; orgUser: OrganizationUser }>> {
+    return getStoredOrganizationsByUserId(this.db, userId);
+  }
+
+  async getOrganizationByIdForUser(organizationId: string, userId: string): Promise<{ org: Organization; orgUser: OrganizationUser } | null> {
+    return getStoredOrganizationByIdForUser(this.db, organizationId, userId);
+  }
+
+  async getOrgUsersByOrgId(organizationId: string): Promise<OrgUserDetails[]> {
+    return getStoredOrgUsersByOrgId(this.db, organizationId);
+  }
+
+  async getOrgUserById(orgUserId: string): Promise<OrganizationUser | null> {
+    return getStoredOrgUserById(this.db, orgUserId);
+  }
+
+  async getOrgUserByOrgAndEmail(organizationId: string, email: string): Promise<OrganizationUser | null> {
+    return getStoredOrgUserByOrgAndEmail(this.db, organizationId, email);
+  }
+
+  async insertOrgUser(orgUser: OrganizationUser): Promise<void> {
+    await insertStoredOrgUser(this.db, orgUser);
+  }
+
+  async acceptOrgUserInvite(orgUserId: string, userId: string, updatedAt: string): Promise<void> {
+    await acceptStoredOrgUserInvite(this.db, orgUserId, userId, updatedAt);
+  }
+
+  async confirmOrgUser(orgUserId: string, key: string, updatedAt: string): Promise<void> {
+    await confirmStoredOrgUser(this.db, orgUserId, key, updatedAt);
+  }
+
+  // --- Collections ---
+
+  async getAccessibleCollections(
+    organizationId: string,
+    orgUserId: string,
+    accessAll: boolean
+  ): Promise<Array<{ collection: Collection; readOnly: boolean; hidePasswords: boolean }>> {
+    return getStoredAccessibleCollections(this.db, organizationId, orgUserId, accessAll);
+  }
+
+  async getCollectionById(collectionId: string): Promise<Collection | null> {
+    return getStoredCollectionById(this.db, collectionId);
+  }
+
+  async insertCollection(collection: Collection): Promise<void> {
+    await insertStoredCollection(this.db, collection);
+  }
+
+  async updateCollection(
+    collectionId: string,
+    name: string,
+    externalId: string | null,
+    updatedAt: string
+  ): Promise<void> {
+    await updateStoredCollection(this.db, collectionId, name, externalId, updatedAt);
+  }
+
+  async deleteCollection(collectionId: string): Promise<void> {
+    await deleteStoredCollection(this.db, collectionId);
+  }
+
+  async getCollectionUsers(collectionId: string): Promise<CollectionUser[]> {
+    return getStoredCollectionUsers(this.db, collectionId);
+  }
+
+  async replaceCollectionUsers(collectionId: string, users: CollectionUser[]): Promise<void> {
+    await replaceStoredCollectionUsers(this.db, collectionId, users);
+  }
+
+  async getCollectionIdsForCipher(cipherId: string): Promise<string[]> {
+    return getStoredCollectionIdsForCipher(this.db, cipherId);
+  }
+
+  async getCollectionIdsByCipherIds(cipherIds: string[]): Promise<Map<string, string[]>> {
+    return getStoredCollectionIdsByCipherIds(this.db, cipherIds);
+  }
+
+  async replaceCipherCollections(cipherId: string, collectionIds: string[]): Promise<void> {
+    await replaceStoredCipherCollections(this.db, cipherId, collectionIds);
+  }
+
+  async getAccessibleCipherIds(userId: string): Promise<Set<string>> {
+    return getStoredAccessibleCipherIds(this.db, userId);
+  }
+
+  collectionToResponse = collectionToResponse;
 }

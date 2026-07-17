@@ -240,6 +240,23 @@ export function translateServerError(message: string | null | undefined, fallbac
     'WebDAV username is required': 'txt_backup_error_webdav_username_required',
     'masterPasswordHash is required': 'txt_server_error_master_password_hash_required',
     'masterPasswordHash or userVerificationToken is required': 'txt_server_error_master_password_or_verification_required',
+    'Not found': 'txt_server_error_not_found',
+    'Invalid JSON': 'txt_server_error_invalid_json',
+    'Organization name is required': 'txt_server_error_organization_name_required',
+    'Organization key is required': 'txt_server_error_organization_key_required',
+    'You do not have permission to invite members': 'txt_server_error_no_permission_invite_members',
+    'At least one email is required': 'txt_server_error_at_least_one_email_required',
+    'Invalid email in list': 'txt_server_error_invalid_email_in_list',
+    'This invitation is for a different email address': 'txt_server_error_invite_wrong_email',
+    'Invitation is no longer valid': 'txt_server_error_invite_no_longer_valid',
+    'You do not have permission to confirm members': 'txt_server_error_no_permission_confirm_members',
+    'User has not accepted the invitation': 'txt_server_error_user_not_accepted_invite',
+    'You do not have permission to create collections': 'txt_server_error_no_permission_create_collections',
+    'Collection name is required': 'txt_server_error_collection_name_required',
+    'You do not have permission to update collections': 'txt_server_error_no_permission_update_collections',
+    'You do not have permission to delete collections': 'txt_server_error_no_permission_delete_collections',
+    'You do not have permission to manage collection access': 'txt_server_error_no_permission_manage_collection_access',
+    'Expected an array of user grants': 'txt_server_error_expected_array_of_user_grants',
   }[normalized];
   return key ? t(key) : normalized;
 }

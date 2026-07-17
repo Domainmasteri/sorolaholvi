@@ -96,6 +96,22 @@ import {
   handleListPendingAuthRequests,
   handleUpdateAuthRequest,
 } from './handlers/auth-requests';
+import {
+  handleCreateOrganization,
+  handleGetOrganizations,
+  handleGetOrganization,
+  handleGetOrganizationUsers,
+  handleInviteOrganizationUser,
+  handleAcceptOrganizationUserInvite,
+  handleConfirmOrganizationUser,
+} from './handlers/organizations';
+import {
+  handleCreateCollection,
+  handleGetCollections,
+  handleUpdateCollection,
+  handleDeleteCollection,
+  handleUpdateCollectionUsers,
+} from './handlers/collections';
 
 export async function handleAuthenticatedRoute(
   request: Request,
@@ -409,7 +425,69 @@ export async function handleAuthenticatedRoute(
     return null;
   }
 
-  if (path === '/api/organizations' || path.startsWith('/api/organizations/')) {
+  if (path === '/api/organizations') {
+    if (method === 'GET') return handleGetOrganizations(request, env, userId);
+    if (method === 'POST') return handleCreateOrganization(request, env, userId, currentUser);
+    return errorResponse('Method not allowed', 405);
+  }
+
+  // POST /api/organizations/:orgId/users/invite
+  const orgInviteMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/users\/invite$/i);
+  if (orgInviteMatch && method === 'POST') {
+    return handleInviteOrganizationUser(request, env, userId, orgInviteMatch[1]);
+  }
+
+  // POST /api/organizations/:orgId/users/:orgUserId/accept
+  const orgAcceptMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/users\/([a-f0-9-]+)\/accept$/i);
+  if (orgAcceptMatch && method === 'POST') {
+    return handleAcceptOrganizationUserInvite(request, env, userId, currentUser, orgAcceptMatch[1], orgAcceptMatch[2]);
+  }
+
+  // POST /api/organizations/:orgId/users/:orgUserId/confirm
+  const orgConfirmMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/users\/([a-f0-9-]+)\/confirm$/i);
+  if (orgConfirmMatch && method === 'POST') {
+    return handleConfirmOrganizationUser(request, env, userId, orgConfirmMatch[1], orgConfirmMatch[2]);
+  }
+
+  // GET /api/organizations/:orgId/users
+  const orgUsersMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/users$/i);
+  if (orgUsersMatch) {
+    if (method === 'GET') return handleGetOrganizationUsers(request, env, userId, orgUsersMatch[1]);
+    return errorResponse('Method not allowed', 405);
+  }
+
+  // PUT /api/organizations/:orgId/collections/:colId/users
+  const colUsersMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/collections\/([a-f0-9-]+)\/users$/i);
+  if (colUsersMatch) {
+    if (method === 'PUT' || method === 'POST') return handleUpdateCollectionUsers(request, env, userId, colUsersMatch[1], colUsersMatch[2]);
+    return errorResponse('Method not allowed', 405);
+  }
+
+  // PUT/DELETE /api/organizations/:orgId/collections/:colId
+  const colMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/collections\/([a-f0-9-]+)$/i);
+  if (colMatch) {
+    if (method === 'PUT' || method === 'POST') return handleUpdateCollection(request, env, userId, colMatch[1], colMatch[2]);
+    if (method === 'DELETE') return handleDeleteCollection(request, env, userId, colMatch[1], colMatch[2]);
+    return null;
+  }
+
+  // GET/POST /api/organizations/:orgId/collections
+  const colListMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)\/collections$/i);
+  if (colListMatch) {
+    if (method === 'GET') return handleGetCollections(request, env, userId, colListMatch[1]);
+    if (method === 'POST') return handleCreateCollection(request, env, userId, colListMatch[1]);
+    return errorResponse('Method not allowed', 405);
+  }
+
+  // GET /api/organizations/:id  (exact org record)
+  const orgMatch = path.match(/^\/api\/organizations\/([a-f0-9-]+)$/i);
+  if (orgMatch) {
+    if (method === 'GET') return handleGetOrganization(request, env, userId, orgMatch[1]);
+    return null;
+  }
+
+  // Catch-all for other /api/organizations/ sub-paths
+  if (path.startsWith('/api/organizations/')) {
     if (method === 'GET') {
       return jsonResponse({ data: [], object: 'list', continuationToken: null });
     }

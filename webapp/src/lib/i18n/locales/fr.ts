@@ -1,4 +1,4 @@
-// Complete French locale. Translate the values in this file to add a new language. Keep keys and placeholders unchanged.
+// French locale. Keep keys and placeholders unchanged.
 const fr: Record<string, string> = {
   "nav_account_settings": "Paramètres du compte",
   "nav_admin_panel": "Panneau d'administration",
@@ -1444,7 +1444,24 @@ const fr: Record<string, string> = {
   "txt_auth_request_approved": "Connexion de l'appareil approuvée",
   "txt_auth_request_denied": "Connexion de l'appareil refusée",
   "txt_auth_request_missing_public_key": "Il manque une clé publique à la demande de connexion de l'appareil",
-  "txt_ip_address": "Adresse IP"
+  "txt_ip_address": "Adresse IP",
+  "txt_server_error_not_found": "Introuvable",
+  "txt_server_error_invalid_json": "JSON invalide",
+  "txt_server_error_organization_name_required": "Le nom de l'organisation est requis",
+  "txt_server_error_organization_key_required": "La clé de l'organisation est requise",
+  "txt_server_error_no_permission_invite_members": "Vous n'avez pas la permission d'inviter des membres",
+  "txt_server_error_at_least_one_email_required": "Au moins une adresse e-mail est requise",
+  "txt_server_error_invalid_email_in_list": "Adresse e-mail invalide dans la liste",
+  "txt_server_error_invite_wrong_email": "Cette invitation est destinée à une autre adresse e-mail",
+  "txt_server_error_invite_no_longer_valid": "L'invitation n'est plus valide",
+  "txt_server_error_no_permission_confirm_members": "Vous n'avez pas la permission de confirmer des membres",
+  "txt_server_error_user_not_accepted_invite": "L'utilisateur n'a pas accepté l'invitation",
+  "txt_server_error_no_permission_create_collections": "Vous n'avez pas la permission de créer des collections",
+  "txt_server_error_collection_name_required": "Le nom de la collection est requis",
+  "txt_server_error_no_permission_update_collections": "Vous n'avez pas la permission de mettre à jour des collections",
+  "txt_server_error_no_permission_delete_collections": "Vous n'avez pas la permission de supprimer des collections",
+  "txt_server_error_no_permission_manage_collection_access": "Vous n'avez pas la permission de gérer l'accès à la collection",
+  "txt_server_error_expected_array_of_user_grants": "Un tableau de permissions d'utilisateurs était attendu"
 };
 
 export default fr;

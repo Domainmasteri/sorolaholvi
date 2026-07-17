@@ -159,6 +159,56 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 
   'CREATE TABLE IF NOT EXISTS used_attachment_download_tokens (' +
   'jti TEXT PRIMARY KEY, expires_at INTEGER NOT NULL)',
+
+  // ---- Organizations (added in 0002_organizations.sql) ----
+  // role: 0=Owner, 1=Admin, 2=User, 3=Manager, 4=Custom
+  // status: -1=Revoked, 0=Invited, 1=Accepted, 2=Confirmed
+  'CREATE TABLE IF NOT EXISTS organizations (' +
+  'id TEXT PRIMARY KEY, name TEXT NOT NULL, billing_email TEXT, plan TEXT NOT NULL DEFAULT \'free\', ' +
+  'public_key TEXT, private_key TEXT, enabled INTEGER NOT NULL DEFAULT 1, ' +
+  'created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
+
+  'CREATE TABLE IF NOT EXISTS organization_users (' +
+  'id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, user_id TEXT, email TEXT NOT NULL, ' +
+  'role INTEGER NOT NULL DEFAULT 2, status INTEGER NOT NULL DEFAULT 0, ' +
+  'key TEXT, reset_password_key TEXT, access_all INTEGER NOT NULL DEFAULT 0, ' +
+  'created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
+  'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL)',
+
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_org_users_org_user ON organization_users(organization_id, user_id)',
+
+  'CREATE INDEX IF NOT EXISTS idx_org_users_org_status ON organization_users(organization_id, status)',
+
+  'CREATE INDEX IF NOT EXISTS idx_org_users_user ON organization_users(user_id)',
+
+  // ---- Collections (added in 0003_collections.sql) ----
+  'ALTER TABLE ciphers ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE SET NULL',
+  'CREATE INDEX IF NOT EXISTS idx_ciphers_org ON ciphers(organization_id)',
+
+  'CREATE TABLE IF NOT EXISTS collections (' +
+  'id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, name TEXT NOT NULL, external_id TEXT, ' +
+  'created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
+  'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)',
+
+  'CREATE INDEX IF NOT EXISTS idx_collections_org ON collections(organization_id)',
+
+  'CREATE TABLE IF NOT EXISTS collection_users (' +
+  'collection_id TEXT NOT NULL, org_user_id TEXT NOT NULL, ' +
+  'read_only INTEGER NOT NULL DEFAULT 0, hide_passwords INTEGER NOT NULL DEFAULT 0, ' +
+  'PRIMARY KEY (collection_id, org_user_id), ' +
+  'FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (org_user_id) REFERENCES organization_users(id) ON DELETE CASCADE)',
+
+  'CREATE INDEX IF NOT EXISTS idx_collection_users_org_user ON collection_users(org_user_id)',
+
+  'CREATE TABLE IF NOT EXISTS collection_items (' +
+  'collection_id TEXT NOT NULL, cipher_id TEXT NOT NULL, ' +
+  'PRIMARY KEY (collection_id, cipher_id), ' +
+  'FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (cipher_id) REFERENCES ciphers(id) ON DELETE CASCADE)',
+
+  'CREATE INDEX IF NOT EXISTS idx_collection_items_cipher ON collection_items(cipher_id)',
 ];
 
 async function executeSchemaStatement(db: D1Database, statement: string): Promise<void> {

@@ -1,4 +1,4 @@
-// Localización completa en español. Mantener claves y marcadores de posición sin cambios.
+// Spanish locale. Keep keys and placeholders unchanged.
 const es: Record<string, string> = {
   "nav_account_settings": "Configuración de la cuenta",
   "nav_admin_panel": "Panel de administración",
@@ -1444,7 +1444,24 @@ const es: Record<string, string> = {
   "txt_auth_request_update_failed": "No se pudo actualizar la solicitud de inicio de sesión con dispositivo",
   "txt_auth_request_approved": "Inicio de sesión con dispositivo aprobado",
   "txt_auth_request_denied": "Inicio de sesión con dispositivo denegado",
-  "txt_auth_request_missing_public_key": "La solicitud de inicio de sesión con dispositivo no incluye una clave pública"
+  "txt_auth_request_missing_public_key": "La solicitud de inicio de sesión con dispositivo no incluye una clave pública",
+  "txt_server_error_not_found": "No encontrado",
+  "txt_server_error_invalid_json": "JSON no válido",
+  "txt_server_error_organization_name_required": "El nombre de la organización es obligatorio",
+  "txt_server_error_organization_key_required": "La clave de la organización es obligatoria",
+  "txt_server_error_no_permission_invite_members": "No tienes permiso para invitar miembros",
+  "txt_server_error_at_least_one_email_required": "Se requiere al menos un correo electrónico",
+  "txt_server_error_invalid_email_in_list": "Correo electrónico no válido en la lista",
+  "txt_server_error_invite_wrong_email": "Esta invitación es para una dirección de correo electrónico diferente",
+  "txt_server_error_invite_no_longer_valid": "La invitación ya no es válida",
+  "txt_server_error_no_permission_confirm_members": "No tienes permiso para confirmar miembros",
+  "txt_server_error_user_not_accepted_invite": "El usuario no ha aceptado la invitación",
+  "txt_server_error_no_permission_create_collections": "No tienes permiso para crear colecciones",
+  "txt_server_error_collection_name_required": "El nombre de la colección es obligatorio",
+  "txt_server_error_no_permission_update_collections": "No tienes permiso para actualizar colecciones",
+  "txt_server_error_no_permission_delete_collections": "No tienes permiso para eliminar colecciones",
+  "txt_server_error_no_permission_manage_collection_access": "No tienes permiso para gestionar el acceso a la colección",
+  "txt_server_error_expected_array_of_user_grants": "Se esperaba un array de permisos de usuario"
 };
 
 export default es;

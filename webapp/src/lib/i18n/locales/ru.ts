@@ -1,4 +1,4 @@
-// Complete Russian locale. Keep keys and placeholders unchanged.
+// Russian locale. Keep keys and placeholders unchanged.
 const ru: Record<string, string> = {
   "txt_backup_destination_detail_note": "",
   "nav_account_settings": "Настройки учетной записи",
@@ -1444,7 +1444,24 @@ const ru: Record<string, string> = {
   "txt_auth_request_update_failed": "Не удалось обновить запрос входа с устройства",
   "txt_auth_request_approved": "Вход с устройства подтвержден",
   "txt_auth_request_denied": "Вход с устройства отклонен",
-  "txt_auth_request_missing_public_key": "В запросе входа с устройства отсутствует открытый ключ"
+  "txt_auth_request_missing_public_key": "В запросе входа с устройства отсутствует открытый ключ",
+  "txt_server_error_not_found": "Не найдено",
+  "txt_server_error_invalid_json": "Неверный JSON",
+  "txt_server_error_organization_name_required": "Название организации обязательно",
+  "txt_server_error_organization_key_required": "Ключ организации обязателен",
+  "txt_server_error_no_permission_invite_members": "У вас нет разрешения приглашать участников",
+  "txt_server_error_at_least_one_email_required": "Требуется хотя бы один адрес электронной почты",
+  "txt_server_error_invalid_email_in_list": "Неверный адрес электронной почты в списке",
+  "txt_server_error_invite_wrong_email": "Это приглашение предназначено для другого адреса электронной почты",
+  "txt_server_error_invite_no_longer_valid": "Приглашение больше не действительно",
+  "txt_server_error_no_permission_confirm_members": "У вас нет разрешения подтверждать участников",
+  "txt_server_error_user_not_accepted_invite": "Пользователь не принял приглашение",
+  "txt_server_error_no_permission_create_collections": "У вас нет разрешения создавать коллекции",
+  "txt_server_error_collection_name_required": "Название коллекции обязательно",
+  "txt_server_error_no_permission_update_collections": "У вас нет разрешения обновлять коллекции",
+  "txt_server_error_no_permission_delete_collections": "У вас нет разрешения удалять коллекции",
+  "txt_server_error_no_permission_manage_collection_access": "У вас нет разрешения управлять доступом к коллекции",
+  "txt_server_error_expected_array_of_user_grants": "Ожидался массив прав пользователей"
 };
 
 export default ru;

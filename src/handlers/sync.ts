@@ -1,4 +1,4 @@
-import { Env, SyncResponse, CipherResponse, FolderResponse, ProfileResponse } from '../types';
+import { Env, SyncResponse, CipherResponse, FolderResponse, ProfileResponse, Cipher } from '../types';
 import { StorageService } from '../services/storage';
 import { errorResponse } from '../utils/response';
 import { cipherToResponse, isCipherResponseSyncCompatible, shouldPreserveRepairableCipherUris } from './ciphers';
@@ -77,13 +77,38 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     return cachedResponse;
   }
 
-  const [ciphers, folders, sends, attachmentsByCipher, domainSettings] = await Promise.all([
+  const [ciphers, folders, sends, attachmentsByCipher, domainSettings, memberships] = await Promise.all([
     storage.getAllCiphers(userId),
     storage.getAllFolders(userId),
     excludeSends ? Promise.resolve([]) : storage.getAllSends(userId),
     storage.getAttachmentsByUserId(userId),
     excludeDomains ? Promise.resolve(null) : storage.getUserDomainSettings(userId),
+    storage.getOrganizationsByUserId(userId),
   ]);
+
+  // Build set of accessible cipher IDs (personal + org via collections).
+  const accessibleCipherIds = await storage.getAccessibleCipherIds(userId);
+
+  // Collect org ciphers not already in the personal cipher list.
+  const personalCipherIds = new Set(ciphers.map((c) => c.id));
+  const orgCiphers: typeof ciphers = [];
+  for (const id of accessibleCipherIds) {
+    if (!personalCipherIds.has(id)) {
+      const c = await storage.getCipher(id);
+      if (c) orgCiphers.push(c);
+    }
+  }
+  const allCiphers = [...ciphers, ...orgCiphers];
+
+  // Bulk-fetch collectionIds for all ciphers.
+  const collectionIdsByCipher = await storage.getCollectionIdsByCipherIds(allCiphers.map((c) => c.id));
+
+  // Bulk-fetch attachment info for org ciphers (personal ones already fetched).
+  const orgCipherIds = orgCiphers.map((c) => c.id);
+  const orgAttachmentsByCipher = orgCipherIds.length > 0
+    ? await storage.getAttachmentsByCipherIds(orgCipherIds)
+    : new Map<string, typeof attachmentsByCipher extends Map<string, infer V> ? V : never>();
+  const mergedAttachments = new Map([...attachmentsByCipher, ...orgAttachmentsByCipher]);
   const webAuthnPrfOptions = accountPasskeys
     .map(buildWebAuthnPrfOption)
     .filter((option): option is NonNullable<typeof option> => !!option);
@@ -93,10 +118,26 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   const profile: ProfileResponse = buildProfileResponse(user, env);
 
   const cipherResponses: CipherResponse[] = [];
-  for (const cipher of ciphers) {
-    const response = cipherToResponse(cipher, attachmentsByCipher.get(cipher.id) || [], { preserveRepairableUris, validFolderIds });
+  for (const cipher of allCiphers) {
+    const cIds = collectionIdsByCipher.get(cipher.id) ?? [];
+    const cipherWithCollections: Cipher = { ...cipher, collectionIds: cIds };
+    const response = cipherToResponse(cipherWithCollections, mergedAttachments.get(cipher.id) || [], { preserveRepairableUris, validFolderIds });
     if (isCipherResponseSyncCompatible(response)) {
       cipherResponses.push(response);
+    }
+  }
+
+  // Build collections list for all orgs the user belongs to.
+  const collectionResponses: any[] = [];
+  for (const { orgUser } of memberships) {
+    const isAdminOrOwner = orgUser.role === 0 || orgUser.role === 1;
+    const items = await storage.getAccessibleCollections(
+      orgUser.organizationId,
+      orgUser.id,
+      orgUser.accessAll || isAdminOrOwner
+    );
+    for (const { collection, readOnly, hidePasswords } of items) {
+      collectionResponses.push(storage.collectionToResponse(collection, readOnly, hidePasswords));
     }
   }
 
@@ -115,7 +156,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   const syncResponse: SyncResponse = {
     profile,
     folders: folderResponses,
-    collections: [],
+    collections: collectionResponses,
     ciphers: cipherResponses,
     domains: excludeDomains
       ? null
