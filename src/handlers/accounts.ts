@@ -1565,7 +1565,7 @@ function generateEmailOtpCode(): string {
   // 6-digit numeric OTP
   const buf = new Uint32Array(1);
   crypto.getRandomValues(buf);
-  return String(buf[0] % 1_000_000).padStart(EMAIL_OTP_DIGITS, '0');
+  return String(buf[0] % Math.pow(10, EMAIL_OTP_DIGITS)).padStart(EMAIL_OTP_DIGITS, '0');
 }
 
 function maskEmail(email: string): string {
@@ -1603,10 +1603,11 @@ async function sendEmailOtpCode(
   await storage.saveEmailOtp(otp);
 
   const appName = emailSettings.fromName || 'NodeWarden';
+  const otpTtlMinutes = Math.round(EMAIL_OTP_TTL_MS / 60_000);
   const html = `<p>Your two-step login verification code for <b>${appName}</b> is:</p>
 <p style="font-size:28px;letter-spacing:4px;font-weight:bold;">${code}</p>
-<p>This code expires in 10 minutes. Do not share it with anyone.</p>`;
-  const text = `Your two-step login verification code for ${appName} is: ${code}\nThis code expires in 10 minutes.`;
+<p>This code expires in ${otpTtlMinutes} minutes. Do not share it with anyone.</p>`;
+  const text = `Your two-step login verification code for ${appName} is: ${code}\nThis code expires in ${otpTtlMinutes} minutes.`;
 
   try {
     await sendSmtpEmail(emailSettings, user.email, `Your login code for ${appName}`, html, text);
@@ -1769,16 +1770,18 @@ export async function handleEnableEmailTwoFactor(request: Request, env: Env, use
 // --- Registration email verification ---
 
 function buildVerificationEmailHtml(appName: string, verifyUrl: string, code: string): string {
+  const ttlMinutes = Math.round(REGISTRATION_TOKEN_TTL_MS / 60_000);
   return `<p>Welcome to <b>${appName}</b>!</p>
 <p>Click the link below to verify your email address and complete registration:</p>
 <p><a href="${verifyUrl}" style="font-size:16px;">Verify Email Address</a></p>
 <p>Or enter this code manually:</p>
 <p style="font-size:24px;letter-spacing:4px;font-weight:bold;">${code}</p>
-<p>This link expires in 30 minutes.</p>`;
+<p>This link expires in ${ttlMinutes} minutes.</p>`;
 }
 
 function buildVerificationEmailText(appName: string, verifyUrl: string, code: string): string {
-  return `Welcome to ${appName}!\n\nVerify your email:\n${verifyUrl}\n\nOr enter code: ${code}\n\nExpires in 30 minutes.`;
+  const ttlMinutes = Math.round(REGISTRATION_TOKEN_TTL_MS / 60_000);
+  return `Welcome to ${appName}!\n\nVerify your email:\n${verifyUrl}\n\nOr enter code: ${code}\n\nExpires in ${ttlMinutes} minutes.`;
 }
 
 // POST /identity/accounts/register/send-verification-email

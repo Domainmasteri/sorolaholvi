@@ -39,6 +39,7 @@ const TWO_FACTOR_PROVIDER_WEBAUTHN = 7;
 const TWO_FACTOR_PROVIDER_RECOVERY_CODE = 8;
 const EMAIL_OTP_TTL_MS = 10 * 60 * 1000;
 const EMAIL_OTP_DIGITS = 6;
+const EMAIL_OTP_MODULO = Math.pow(10, EMAIL_OTP_DIGITS); // 1_000_000 for 6 digits
 const WEB_REFRESH_COOKIE = 'nodewarden_web_refresh';
 const YUBICO_CLIENT_ID_CONFIG_KEY = 'globalSettings__yubico__clientId';
 const YUBICO_KEY_CONFIG_KEY = 'globalSettings__yubico__key';
@@ -51,7 +52,7 @@ const TWO_FACTOR_PROVIDER_RECOVERY_CODE_ANDROID_REQUEST = 100;
 function generateEmailOtpCode(): string {
   const buf = new Uint32Array(1);
   crypto.getRandomValues(buf);
-  return String(buf[0] % Math.pow(10, EMAIL_OTP_DIGITS)).padStart(EMAIL_OTP_DIGITS, '0');
+  return String(buf[0] % EMAIL_OTP_MODULO).padStart(EMAIL_OTP_DIGITS, '0');
 }
 
 async function sendLoginEmailOtp(
@@ -77,10 +78,11 @@ async function sendLoginEmailOtp(
   await storage.saveEmailOtp(otp);
 
   const appName = emailSettings.fromName || 'NodeWarden';
+  const ttlMinutes = Math.round(EMAIL_OTP_TTL_MS / 60_000);
   const html = `<p>Your two-step login verification code for <b>${appName}</b> is:</p>
 <p style="font-size:28px;letter-spacing:4px;font-weight:bold;">${code}</p>
-<p>This code expires in 10 minutes. Do not share it with anyone.</p>`;
-  const text = `Your two-step login verification code for ${appName} is: ${code}\nExpires in 10 minutes.`;
+<p>This code expires in ${ttlMinutes} minutes. Do not share it with anyone.</p>`;
+  const text = `Your two-step login verification code for ${appName} is: ${code}\nExpires in ${ttlMinutes} minutes.`;
 
   try {
     await sendSmtpEmail(emailSettings, user.email, `Your login code for ${appName}`, html, text);

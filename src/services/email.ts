@@ -45,7 +45,7 @@ function buildRawEmail(
   const boundary = `_bnd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
   const dateStr = new Date().toUTCString();
   const from = fromName
-    ? `"${fromName.replace(/"/g, '\\"')}" <${fromEmail}>`
+    ? `"${fromName.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" <${fromEmail}>`
     : fromEmail;
 
   const htmlB64 = base64Lines(base64EncodeUint8(new TextEncoder().encode(html)));
