@@ -58,6 +58,7 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [createName, setCreateName] = useState('');
   const [createEmail, setCreateEmail] = useState('');
   const [createKey, setCreateKey] = useState('');
+  const [confirmDeleteOrganizationId, setConfirmDeleteOrganizationId] = useState('');
   const [inviteEmails, setInviteEmails] = useState('');
   const [inviteRole, setInviteRole] = useState<OrganizationMemberRole>(ORGANIZATION_MEMBER_ROLE.USER);
   const [inviteAccessAll, setInviteAccessAll] = useState(false);
@@ -153,6 +154,12 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
       return next;
     });
   }, [collections]);
+
+  useEffect(() => {
+    if (confirmDeleteOrganizationId && confirmDeleteOrganizationId !== selectedOrganizationId) {
+      setConfirmDeleteOrganizationId('');
+    }
+  }, [confirmDeleteOrganizationId, selectedOrganizationId]);
 
   async function withBusy(action: () => Promise<void>): Promise<void> {
     setBusy(true);
@@ -268,15 +275,18 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
             disabled={busy || !selectedOrganizationId}
             onClick={() => void withBusy(async () => {
               if (!selectedOrganizationId) return;
-              const confirmed = window.confirm('Delete this organization and all its collections?');
-              if (!confirmed) return;
+              if (confirmDeleteOrganizationId !== selectedOrganizationId) {
+                setConfirmDeleteOrganizationId(selectedOrganizationId);
+                return;
+              }
               await deleteOrganization(props.authedFetch, selectedOrganizationId);
+              setConfirmDeleteOrganizationId('');
               await refreshAll();
               props.onNotify('success', 'Organization deleted');
             })}
           >
             <Trash2 size={14} className="btn-icon" />
-            {t('txt_delete')}
+            {confirmDeleteOrganizationId === selectedOrganizationId ? t('txt_confirm') : t('txt_delete')}
           </button>
         </div>
       </section>
