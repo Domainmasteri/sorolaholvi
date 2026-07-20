@@ -12,7 +12,8 @@ import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { buildAccountKeys } from '../utils/user-decryption';
 import { buildProfileResponse } from '../utils/profile-response';
 import { isYubiKeyEnabled, isYubiKeyPublicId, requestYubicoApiCredentials, verifyYubicoOtp, yubicoCredentialsFromEnv, yubiKeyPublicIdFromOtp, type YubicoApiCredentials } from '../utils/yubico-otp';
-import { isRegistrationEnabled } from '../utils/system-settings';
+import { isRegistrationEnabled, isRegistrationEmailConfirmRequired, isEmailDeliveryEnabled } from '../utils/system-settings';
+import { sendSmtpEmail, generateOtpCode } from '../services/email';
 
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
 const TWO_FACTOR_PROVIDER_YUBIKEY = 3;
@@ -21,6 +22,9 @@ const TOTP_USER_VERIFICATION_TOKEN_TTL_MS = 10 * 60 * 1000;
 const TOTP_BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const YUBICO_CLIENT_ID_CONFIG_KEY = 'globalSettings__yubico__clientId';
 const YUBICO_KEY_CONFIG_KEY = 'globalSettings__yubico__key';
+const EMAIL_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const EMAIL_OTP_PURPOSE_REGISTRATION = 'registration';
+const EMAIL_OTP_PURPOSE_LOGIN = 'login';
 
 // CONTRACT:
 // users.master_password_hash is server-side login verification only. It does
@@ -401,6 +405,13 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     return errorResponse('Invite code is invalid or expired', 403);
   }
 
+  // Check if email confirmation is required for new registrations.
+  const emailConfirmRequired = await isRegistrationEmailConfirmRequired(storage);
+  const emailEnabled = await isEmailDeliveryEnabled(storage);
+  if (emailConfirmRequired && emailEnabled) {
+    user.status = 'pending';
+  }
+
   try {
     await storage.createUser(user);
   } catch (error) {
@@ -430,8 +441,23 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     targetId: user.id,
     category: 'security',
     level: 'info',
-    metadata: { email: user.email, inviteCode, ...auditRequestMetadata(request) },
+    metadata: { email: user.email, inviteCode, emailConfirmRequired: user.status === 'pending', ...auditRequestMetadata(request) },
   });
+
+  // Send confirmation email if required.
+  if (user.status === 'pending') {
+    const otpCode = generateOtpCode(6);
+    const otpId = generateUUID();
+    await storage.saveEmailOtp(otpId, user.id, user.email, EMAIL_OTP_PURPOSE_REGISTRATION, otpCode, EMAIL_OTP_TTL_MS);
+    const appName = 'NodeWarden';
+    const html = `<p>Welcome to ${appName}!</p><p>Your email confirmation code is:</p><h2>${otpCode}</h2><p>This code expires in 10 minutes.</p>`;
+    const text = `Welcome to ${appName}!\n\nYour email confirmation code is: ${otpCode}\n\nThis code expires in 10 minutes.`;
+    const sent = await sendSmtpEmail(storage, user.email, `Confirm your ${appName} account`, html, text);
+    if (!sent) {
+      console.warn('[register] Failed to send confirmation email to', user.email);
+    }
+    return jsonResponse({ success: true, role: user.role, emailConfirmRequired: true }, 200);
+  }
 
   return jsonResponse({ success: true, role: user.role }, 200);
 }
@@ -1535,4 +1561,131 @@ function randomStringAlphanum(length: number): string {
   }
 
   return result;
+}
+
+// POST /api/accounts/verify-email-token  (public, unauthenticated)
+// Verifies the email confirmation OTP sent after registration.
+// Body: { email: string, token: string }
+export async function handleVerifyEmailToken(request: Request, env: Env): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  let body: { email?: string; token?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const email = String(body.email || '').trim().toLowerCase();
+  const token = String(body.token || '').trim();
+  if (!email || !token) {
+    return errorResponse('email and token are required', 400);
+  }
+
+  const user = await storage.getUser(email);
+  if (!user) {
+    // Don't reveal whether the email exists.
+    return jsonResponse({ success: true }, 200);
+  }
+
+  if (user.status !== 'pending') {
+    // Already confirmed (or banned). Return success silently.
+    return jsonResponse({ success: true }, 200);
+  }
+
+  const consumed = await storage.consumeEmailOtp(user.id, EMAIL_OTP_PURPOSE_REGISTRATION, token);
+  if (!consumed) {
+    return errorResponse('Confirmation code is invalid or expired', 400);
+  }
+
+  user.status = 'active';
+  user.updatedAt = new Date().toISOString();
+  await storage.saveUser(user);
+  await writeAuditEvent(storage, {
+    actorUserId: user.id,
+    action: 'user.email.confirmed',
+    category: 'security',
+    level: 'info',
+    targetType: 'user',
+    targetId: user.id,
+    metadata: { email: user.email, ...auditRequestMetadata(request) },
+  });
+
+  return jsonResponse({ success: true }, 200);
+}
+
+// POST /api/accounts/register/send-verification-email  (public, unauthenticated)
+// Resends the registration confirmation email for a pending account.
+// Body: { email: string }
+export async function handleResendRegistrationConfirmEmail(request: Request, env: Env): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  let body: { email?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!email) {
+    return errorResponse('email is required', 400);
+  }
+
+  // Always return success to avoid email enumeration.
+  const user = await storage.getUser(email);
+  if (!user || user.status !== 'pending') {
+    return jsonResponse({ success: true }, 200);
+  }
+
+  const emailEnabled = await isEmailDeliveryEnabled(storage);
+  if (!emailEnabled) {
+    return jsonResponse({ success: true }, 200);
+  }
+
+  const otpCode = generateOtpCode(6);
+  const otpId = generateUUID();
+  await storage.saveEmailOtp(otpId, user.id, user.email, EMAIL_OTP_PURPOSE_REGISTRATION, otpCode, EMAIL_OTP_TTL_MS);
+  const appName = 'NodeWarden';
+  const html = `<p>Welcome to ${appName}!</p><p>Your email confirmation code is:</p><h2>${otpCode}</h2><p>This code expires in 10 minutes.</p>`;
+  const text = `Welcome to ${appName}!\n\nYour email confirmation code is: ${otpCode}\n\nThis code expires in 10 minutes.`;
+  await sendSmtpEmail(storage, user.email, `Confirm your ${appName} account`, html, text);
+
+  return jsonResponse({ success: true }, 200);
+}
+
+// POST /api/two-factor/send-email  (authenticated)
+// Sends a new email 2FA OTP for the authenticated user.
+// This is called when the user requests a new code during the 2FA setup or verification flow.
+export async function handleSendTwoFactorEmail(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const auth = new AuthService(env);
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  let body: Record<string, unknown>;
+  try {
+    body = await readRequestBody(request);
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const secret = readBodyString(body, ['masterPasswordHash', 'MasterPasswordHash', 'otp', 'OTP', 'secret', 'Secret']);
+  const verified = await verifyUserSecret(auth, user, secret);
+  if (!verified) return errorResponse('User verification failed.', 400);
+
+  const emailEnabled = await isEmailDeliveryEnabled(storage);
+  if (!emailEnabled) {
+    return errorResponse('Email delivery is disabled by the administrator.', 400);
+  }
+
+  const otpCode = generateOtpCode(6);
+  const otpId = generateUUID();
+  await storage.saveEmailOtp(otpId, user.id, user.email, EMAIL_OTP_PURPOSE_LOGIN, otpCode, EMAIL_OTP_TTL_MS);
+  const appName = 'NodeWarden';
+  const html = `<p>Your ${appName} two-step verification code is:</p><h2>${otpCode}</h2><p>This code expires in 10 minutes. Do not share it with anyone.</p>`;
+  const text = `Your ${appName} two-step verification code is: ${otpCode}\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
+  await sendSmtpEmail(storage, user.email, `Your ${appName} login code`, html, text);
+
+  return jsonResponse({ success: true, object: 'twoFactorEmail' });
 }

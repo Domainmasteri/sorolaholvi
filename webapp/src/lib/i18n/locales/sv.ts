@@ -1202,6 +1202,8 @@ const sv: Record<string, string> = {
   "txt_role_owner": "Ägare",
   "txt_registration_enabled": "Registrering aktiverad",
   "txt_allow_user_email_changes": "Tillåt användare att ändra e-postadress",
+  "txt_registration_email_confirm_required": "Require Email Confirmation for Registration",
+  "txt_email_2fa_enabled": "Allow Email Two-Step Login",
   "txt_email_delivery_enabled": "E-postleverans aktiverad",
   "txt_email_settings": "E-postinställningar",
   "txt_from_email": "Avsändar-e-post",

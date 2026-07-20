@@ -189,8 +189,8 @@ const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
 // Bump this whenever src/services/storage-schema.ts or migrations/0001_init.sql
 // changes. Existing D1 installs only rerun ensureStorageSchema() when this value
 // differs from config.schema.version.
-const STORAGE_SCHEMA_VERSION = '2026-07-16-collections';
-const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays', 'organizations', 'organization_users', 'collections', 'collection_users', 'collection_items'] as const;
+const STORAGE_SCHEMA_VERSION = '2026-07-20-email-otp';
+const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays', 'organizations', 'organization_users', 'collections', 'collection_users', 'collection_items', 'email_otps'] as const;
 
 // D1-backed storage.
 // Contract:
@@ -1074,4 +1074,76 @@ export class StorageService {
   }
 
   collectionToResponse = collectionToResponse;
+
+  // --- Email OTPs ---
+
+  private async hashOtpCode(code: string): Promise<string> {
+    return this.sha256Hex(code);
+  }
+
+  /**
+   * Save an email OTP. Any previous OTPs for the same user+purpose are replaced.
+   * @param id       Unique OTP record ID
+   * @param userId   Owner user ID
+   * @param email    Target email address
+   * @param purpose  'login' | 'registration'
+   * @param code     Plain-text OTP code (will be hashed before storage)
+   * @param ttlMs    Time-to-live in milliseconds
+   */
+  async saveEmailOtp(
+    id: string,
+    userId: string,
+    email: string,
+    purpose: string,
+    code: string,
+    ttlMs: number
+  ): Promise<void> {
+    const nowMs = Date.now();
+    const expiresAt = nowMs + ttlMs;
+    const codeHash = await this.hashOtpCode(code);
+    // Delete any prior OTPs for this user+purpose to keep at most one active.
+    await this.db
+      .prepare('DELETE FROM email_otps WHERE user_id = ? AND purpose = ?')
+      .bind(userId, purpose)
+      .run();
+    await this.db
+      .prepare(
+        'INSERT INTO email_otps (id, user_id, email, purpose, code_hash, expires_at, consumed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)'
+      )
+      .bind(id, userId, email, purpose, codeHash, expiresAt, nowMs)
+      .run();
+  }
+
+  /**
+   * Verify and consume an email OTP.
+   * Returns the record's email on success, null if invalid/expired/already consumed.
+   */
+  async consumeEmailOtp(userId: string, purpose: string, code: string): Promise<string | null> {
+    const nowMs = Date.now();
+    const codeHash = await this.hashOtpCode(code);
+    const row = await this.db
+      .prepare(
+        'SELECT id, email, expires_at, consumed_at FROM email_otps WHERE user_id = ? AND purpose = ? AND code_hash = ? LIMIT 1'
+      )
+      .bind(userId, purpose, codeHash)
+      .first<{ id: string; email: string; expires_at: number; consumed_at: number | null }>();
+    if (!row) return null;
+    if (row.consumed_at !== null) return null;
+    if (row.expires_at < nowMs) return null;
+    // Mark as consumed
+    await this.db
+      .prepare('UPDATE email_otps SET consumed_at = ? WHERE id = ?')
+      .bind(nowMs, row.id)
+      .run();
+    return row.email;
+  }
+
+  /** Delete all OTP records for a user (e.g. after account deletion). */
+  async deleteEmailOtpsByUserId(userId: string): Promise<number> {
+    const result = await this.db
+      .prepare('DELETE FROM email_otps WHERE user_id = ?')
+      .bind(userId)
+      .run();
+    return result.meta?.changes ?? 0;
+  }
 }

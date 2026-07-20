@@ -236,6 +236,8 @@ export async function handleAdminUpdateSystemSettings(
   const settings = await saveSystemSettings(storage, body || {});
   await writeAuditLog(storage, actorUser.id, 'admin.settings.update', 'systemSettings', null, {
     registrationEnabled: settings.registrationEnabled,
+    registrationEmailConfirmRequired: settings.registrationEmailConfirmRequired,
+    email2faEnabled: settings.email2faEnabled,
     emailChangeEnabled: settings.emailChangeEnabled,
     emailEnabled: settings.email.enabled,
   }, request);

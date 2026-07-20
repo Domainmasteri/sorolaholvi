@@ -209,6 +209,15 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'FOREIGN KEY (cipher_id) REFERENCES ciphers(id) ON DELETE CASCADE)',
 
   'CREATE INDEX IF NOT EXISTS idx_collection_items_cipher ON collection_items(cipher_id)',
+
+  // ---- Email OTPs ----
+  'CREATE TABLE IF NOT EXISTS email_otps (' +
+  'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, email TEXT NOT NULL, ' +
+  'purpose TEXT NOT NULL, code_hash TEXT NOT NULL, ' +
+  'expires_at INTEGER NOT NULL, consumed_at INTEGER, created_at INTEGER NOT NULL, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_email_otps_user_purpose ON email_otps(user_id, purpose)',
+  'CREATE INDEX IF NOT EXISTS idx_email_otps_expires ON email_otps(expires_at)',
 ];
 
 async function executeSchemaStatement(db: D1Database, statement: string): Promise<void> {

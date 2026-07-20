@@ -24,6 +24,7 @@ import {
   handleDisableTwoFactorProvider,
   handleGetApiKey,
   handleRotateApiKey,
+  handleSendTwoFactorEmail,
 } from './handlers/accounts';
 import {
   handleGetCiphers,
@@ -268,6 +269,10 @@ export async function handleAuthenticatedRoute(
 
   if (path === '/api/two-factor/disable' && (method === 'PUT' || method === 'POST')) {
     return handleDisableTwoFactorProvider(request, env, userId);
+  }
+
+  if (path === '/api/two-factor/send-email' && method === 'POST') {
+    return handleSendTwoFactorEmail(request, env, userId);
   }
 
   if (path === '/api/accounts/revision-date' && method === 'GET') {
