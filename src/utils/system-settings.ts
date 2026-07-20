@@ -1,6 +1,8 @@
 import type { StorageService } from '../services/storage';
 
 export const REGISTRATION_ENABLED_CONFIG_KEY = 'globalSettings__registration__enabled';
+export const REGISTRATION_EMAIL_CONFIRM_CONFIG_KEY = 'globalSettings__registration__requireEmailConfirm';
+export const EMAIL_2FA_ENABLED_CONFIG_KEY = 'globalSettings__twoFactor__emailEnabled';
 export const EMAIL_ENABLED_CONFIG_KEY = 'globalSettings__email__enabled';
 export const EMAIL_FROM_EMAIL_CONFIG_KEY = 'globalSettings__email__fromEmail';
 export const EMAIL_FROM_NAME_CONFIG_KEY = 'globalSettings__email__fromName';
@@ -22,12 +24,16 @@ export interface EmailSettings {
 
 export interface SystemSettings {
   registrationEnabled: boolean;
+  registrationEmailConfirmRequired: boolean;
+  email2faEnabled: boolean;
   emailChangeEnabled: boolean;
   email: EmailSettings;
 }
 
 export interface SystemSettingsUpdate {
   registrationEnabled?: boolean;
+  registrationEmailConfirmRequired?: boolean;
+  email2faEnabled?: boolean;
   emailChangeEnabled?: boolean;
   email?: Partial<EmailSettings>;
 }
@@ -52,6 +58,8 @@ function readPort(raw: string | null): number | null {
 export async function getSystemSettings(storage: StorageService): Promise<SystemSettings> {
   const registrationDefault = true;
   const registrationEnabled = readBoolean(await storage.getConfigValue(REGISTRATION_ENABLED_CONFIG_KEY), registrationDefault);
+  const registrationEmailConfirmRequired = readBoolean(await storage.getConfigValue(REGISTRATION_EMAIL_CONFIRM_CONFIG_KEY), false);
+  const email2faEnabled = readBoolean(await storage.getConfigValue(EMAIL_2FA_ENABLED_CONFIG_KEY), false);
   const emailChangeEnabled = readBoolean(await storage.getConfigValue(EMAIL_CHANGE_ENABLED_CONFIG_KEY), true);
   const emailEnabled = readBoolean(await storage.getConfigValue(EMAIL_ENABLED_CONFIG_KEY), false);
   const email: EmailSettings = {
@@ -65,6 +73,8 @@ export async function getSystemSettings(storage: StorageService): Promise<System
   };
   return {
     registrationEnabled,
+    registrationEmailConfirmRequired,
+    email2faEnabled,
     emailChangeEnabled,
     email,
   };
@@ -80,12 +90,26 @@ export async function isEmailDeliveryEnabled(storage: StorageService): Promise<b
   return readBoolean(await storage.getConfigValue(EMAIL_ENABLED_CONFIG_KEY), false);
 }
 
+export async function isEmail2faEnabled(storage: StorageService): Promise<boolean> {
+  return readBoolean(await storage.getConfigValue(EMAIL_2FA_ENABLED_CONFIG_KEY), false);
+}
+
+export async function isRegistrationEmailConfirmRequired(storage: StorageService): Promise<boolean> {
+  return readBoolean(await storage.getConfigValue(REGISTRATION_EMAIL_CONFIRM_CONFIG_KEY), false);
+}
+
 export async function saveSystemSettings(storage: StorageService, update: SystemSettingsUpdate): Promise<SystemSettings> {
   const current = await getSystemSettings(storage);
   const next: SystemSettings = {
     registrationEnabled: typeof update.registrationEnabled === 'boolean'
       ? update.registrationEnabled
       : current.registrationEnabled,
+    registrationEmailConfirmRequired: typeof update.registrationEmailConfirmRequired === 'boolean'
+      ? update.registrationEmailConfirmRequired
+      : current.registrationEmailConfirmRequired,
+    email2faEnabled: typeof update.email2faEnabled === 'boolean'
+      ? update.email2faEnabled
+      : current.email2faEnabled,
     emailChangeEnabled: typeof update.emailChangeEnabled === 'boolean'
       ? update.emailChangeEnabled
       : current.emailChangeEnabled,
@@ -117,6 +141,8 @@ export async function saveSystemSettings(storage: StorageService, update: System
   };
 
   await storage.setConfigValue(REGISTRATION_ENABLED_CONFIG_KEY, next.registrationEnabled ? 'true' : 'false');
+  await storage.setConfigValue(REGISTRATION_EMAIL_CONFIRM_CONFIG_KEY, next.registrationEmailConfirmRequired ? 'true' : 'false');
+  await storage.setConfigValue(EMAIL_2FA_ENABLED_CONFIG_KEY, next.email2faEnabled ? 'true' : 'false');
   await storage.setConfigValue(EMAIL_CHANGE_ENABLED_CONFIG_KEY, next.emailChangeEnabled ? 'true' : 'false');
   await storage.setConfigValue(EMAIL_ENABLED_CONFIG_KEY, next.email.enabled ? 'true' : 'false');
   await storage.setConfigValue(EMAIL_FROM_EMAIL_CONFIG_KEY, next.email.fromEmail);

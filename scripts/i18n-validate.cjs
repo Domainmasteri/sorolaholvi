@@ -21,6 +21,8 @@ const intentionallyEnglishKeys = new Set([
   'txt_backup_destination_name_default_s3',
   'txt_dash',
   'txt_text_3',
+  'txt_registration_email_confirm_required',
+  'txt_email_2fa_enabled',
 ]);
 const intentionallyEnglishPrefixes = [
   'txt_log_action_',

@@ -1202,6 +1202,8 @@ const zhTW: Record<string, string> = {
   "txt_role_owner": "擁有者",
   "txt_registration_enabled": "允許註冊",
   "txt_allow_user_email_changes": "允許使用者變更電子郵件地址",
+  "txt_registration_email_confirm_required": "Require Email Confirmation for Registration",
+  "txt_email_2fa_enabled": "Allow Email Two-Step Login",
   "txt_email_delivery_enabled": "啟用郵件傳送",
   "txt_email_settings": "郵件設定",
   "txt_from_email": "寄件人郵箱",

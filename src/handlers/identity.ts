@@ -26,13 +26,18 @@ import { isAuthRequestExpired } from '../services/storage-auth-request-repo';
 import { createPasskeyUserVerificationToken } from '../utils/user-verification-token';
 import { constantTimeEquals, verifyApiKey } from '../utils/api-key';
 import { isYubiKeyEnabled, userYubiKeyPublicIds, verifyYubicoOtp, yubicoCredentialsFromEnv, yubiKeyPublicIdFromOtp, type YubicoApiCredentials } from '../utils/yubico-otp';
+import { isEmail2faEnabled, isEmailDeliveryEnabled } from '../utils/system-settings';
+import { sendSmtpEmail, generateOtpCode, maskEmail } from '../services/email';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
+const TWO_FACTOR_PROVIDER_EMAIL = 1;
 const TWO_FACTOR_PROVIDER_YUBIKEY = 3;
 const TWO_FACTOR_PROVIDER_REMEMBER = 5;
 const TWO_FACTOR_PROVIDER_WEBAUTHN = 7;
 const TWO_FACTOR_PROVIDER_RECOVERY_CODE = 8;
+const EMAIL_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const EMAIL_OTP_PURPOSE_LOGIN = 'login';
 const WEB_REFRESH_COOKIE = 'nodewarden_web_refresh';
 const YUBICO_CLIENT_ID_CONFIG_KEY = 'globalSettings__yubico__clientId';
 const YUBICO_KEY_CONFIG_KEY = 'globalSettings__yubico__key';
@@ -238,7 +243,8 @@ async function twoFactorRequiredResponse(
   env: Env,
   storage: StorageService,
   user?: User,
-  message: string = 'Two factor required.'
+  message: string = 'Two factor required.',
+  emailOtpSent: boolean = false
 ): Promise<Response> {
   // Match Bitwarden Identity: TwoFactorProviders2 lists enabled 2FA providers only.
   // Clients expose recovery-code entry points themselves; Android 2026.4 fails to
@@ -251,13 +257,21 @@ async function twoFactorRequiredResponse(
     webAuthnOptions = await buildTwoFactorPasskeyAssertionOptions(request, env, storage, user) as Record<string, unknown> | null;
     if (webAuthnOptions) providers.push(String(TWO_FACTOR_PROVIDER_WEBAUTHN));
   }
+  // Include email 2FA provider when it was triggered for this user.
+  if (emailOtpSent && user) {
+    providers.push(String(TWO_FACTOR_PROVIDER_EMAIL));
+  }
   const providers2: Record<string, Record<string, unknown> | null> = {};
   for (const provider of providers) {
-    providers2[provider] = provider === String(TWO_FACTOR_PROVIDER_YUBIKEY)
-      ? { Nfc: user?.yubikeyNfc ?? false }
-      : provider === String(TWO_FACTOR_PROVIDER_WEBAUTHN) && webAuthnOptions
-        ? webAuthnOptions
-        : null;
+    if (provider === String(TWO_FACTOR_PROVIDER_YUBIKEY)) {
+      providers2[provider] = { Nfc: user?.yubikeyNfc ?? false };
+    } else if (provider === String(TWO_FACTOR_PROVIDER_WEBAUTHN) && webAuthnOptions) {
+      providers2[provider] = webAuthnOptions;
+    } else if (provider === String(TWO_FACTOR_PROVIDER_EMAIL) && user) {
+      providers2[provider] = { Email: maskEmail(user.email) };
+    } else {
+      providers2[provider] = null;
+    }
   }
   const customResponse = {
     TwoFactorProviders: providers,
@@ -376,6 +390,9 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       await rateLimit.recordFailedLogin(loginIdentifier);
       return identityErrorResponse('Username or password is incorrect. Try again', 'invalid_grant', 400);
     }
+    if (user.status === 'pending') {
+      return identityErrorResponse('Please confirm your email address before signing in.', 'invalid_grant', 400);
+    }
     if (user.status !== 'active') {
       await rateLimit.recordFailedLogin(loginIdentifier);
       await safeWriteAuditEvent(env, {
@@ -444,7 +461,12 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const effectiveTotpSecret = resolveTotpSecret(user.totpSecret);
     const effectiveYubiKeyPublicIds = userYubiKeyPublicIds(user);
     const effectiveWebAuthnCredentials = await storage.getAccountPasskeyCredentialsByUserId(user.id, 'twoFactor');
-    if (effectiveTotpSecret || effectiveYubiKeyPublicIds.length > 0 || effectiveWebAuthnCredentials.length > 0) {
+    // Check if email 2FA is enabled globally and email delivery is available.
+    const email2faActive = await isEmail2faEnabled(storage) && await isEmailDeliveryEnabled(storage);
+    const hasUserDefinedTwoFactor = effectiveTotpSecret || effectiveYubiKeyPublicIds.length > 0 || effectiveWebAuthnCredentials.length > 0;
+    // Email 2FA applies only when: enabled globally AND no user-specific 2FA is configured.
+    const useEmailTwoFactor = !hasUserDefinedTwoFactor && email2faActive;
+    if (hasUserDefinedTwoFactor || useEmailTwoFactor) {
       const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
       const normalizedTwoFactorToken = String(twoFactorToken ?? '').trim();
       let rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
@@ -454,7 +476,19 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       // Upstream-compatible behavior: if 2FA is required and either provider or token is missing,
       // respond with a 2FA challenge payload.
       if (!hasProvider || !hasToken) {
-        return await twoFactorRequiredResponse(request, env, storage, user, 'Two factor required.');
+        // For email 2FA: send the OTP when issuing the challenge.
+        let emailOtpSent = false;
+        if (useEmailTwoFactor) {
+          const otpCode = generateOtpCode(6);
+          const otpId = generateUUID();
+          await storage.saveEmailOtp(otpId, user.id, user.email, EMAIL_OTP_PURPOSE_LOGIN, otpCode, EMAIL_OTP_TTL_MS);
+          const appName = 'NodeWarden';
+          const html = `<p>Your ${appName} login code is:</p><h2>${otpCode}</h2><p>This code expires in 10 minutes. Do not share it with anyone.</p>`;
+          const text = `Your ${appName} login code is: ${otpCode}\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
+          await sendSmtpEmail(storage, user.email, `Your ${appName} login code`, html, text);
+          emailOtpSent = true;
+        }
+        return await twoFactorRequiredResponse(request, env, storage, user, 'Two factor required.', emailOtpSent);
       }
 
       let passedByRememberToken = false;
@@ -470,6 +504,15 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
         // Remember token missing/invalid/expired should re-enter the 2FA challenge flow.
         if (!passedByRememberToken) {
           return await twoFactorRequiredResponse(request, env, storage, user, 'Two factor required.');
+        }
+      } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_EMAIL)) {
+        // Email 2FA verification
+        if (!useEmailTwoFactor) {
+          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
+        }
+        const consumedEmail = await storage.consumeEmailOtp(user.id, EMAIL_OTP_PURPOSE_LOGIN, normalizedTwoFactorToken);
+        if (!consumedEmail) {
+          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
         }
       } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)) {
         if (!effectiveTotpSecret) {
@@ -1089,4 +1132,67 @@ export function checkClientCredentialsParam(clientId: string, clientSecret: stri
     return false;
   }
   return true;
+}
+
+// POST /api/two-factor/send-email-login  (public, unauthenticated)
+// Resends the email OTP for a login 2FA challenge.
+// Body (form-encoded or JSON): { email: string, masterPasswordHash: string }
+// Email is sent only when email 2FA is enabled and the email/password is valid.
+export async function handleSendLoginEmail(request: Request, env: Env): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  let body: Record<string, string>;
+  const contentType = request.headers.get('content-type') || '';
+  try {
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      const formData = await request.formData();
+      body = Object.fromEntries(formData.entries()) as Record<string, string>;
+    } else {
+      body = await request.json();
+    }
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  // Always return success to avoid enumeration.
+  const email = String(body.email || body.Email || '').trim().toLowerCase();
+  const passwordHash = String(body.masterPasswordHash || body.MasterPasswordHash || '').trim();
+  if (!email || !passwordHash) {
+    return jsonResponse({ success: true });
+  }
+
+  const emailEnabled = await isEmailDeliveryEnabled(storage);
+  const email2faEnabled = await isEmail2faEnabled(storage);
+  if (!emailEnabled || !email2faEnabled) {
+    return jsonResponse({ success: true });
+  }
+
+  const user = await storage.getUser(email);
+  if (!user || user.status !== 'active') {
+    return jsonResponse({ success: true });
+  }
+
+  const auth = new AuthService(env);
+  const valid = await auth.verifyPassword(passwordHash, user.masterPasswordHash, user.email);
+  if (!valid) {
+    return jsonResponse({ success: true });
+  }
+
+  // Only send when the user has no other 2FA configured.
+  const totpEnabled = !!(user.totpSecret && isTotpEnabled(user.totpSecret));
+  const yubiKeyEnabled = !!(user.yubikeyKey1 || user.yubikeyKey2 || user.yubikeyKey3 || user.yubikeyKey4 || user.yubikeyKey5);
+  const webAuthnCredentials = await storage.getAccountPasskeyCredentialsByUserId(user.id, 'twoFactor');
+  if (totpEnabled || yubiKeyEnabled || webAuthnCredentials.length > 0) {
+    return jsonResponse({ success: true });
+  }
+
+  const otpCode = generateOtpCode(6);
+  const otpId = generateUUID();
+  await storage.saveEmailOtp(otpId, user.id, user.email, EMAIL_OTP_PURPOSE_LOGIN, otpCode, EMAIL_OTP_TTL_MS);
+  const appName = 'NodeWarden';
+  const html = `<p>Your ${appName} login code is:</p><h2>${otpCode}</h2><p>This code expires in 10 minutes. Do not share it with anyone.</p>`;
+  const text = `Your ${appName} login code is: ${otpCode}\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
+  await sendSmtpEmail(storage, user.email, `Your ${appName} login code`, html, text);
+
+  return jsonResponse({ success: true });
 }

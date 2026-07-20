@@ -30,6 +30,8 @@ export default function AdminPage(props: AdminPageProps) {
   const [page, setPage] = useState(1);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const [emailChangeEnabled, setEmailChangeEnabled] = useState(true);
+  const [registrationEmailConfirmRequired, setRegistrationEmailConfirmRequired] = useState(false);
+  const [email2faEnabled, setEmail2faEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [emailFromEmail, setEmailFromEmail] = useState('');
   const [emailFromName, setEmailFromName] = useState('');
@@ -83,6 +85,8 @@ export default function AdminPage(props: AdminPageProps) {
     if (!props.settings) return;
     setRegistrationEnabled(props.settings.registrationEnabled !== false);
     setEmailChangeEnabled(props.settings.emailChangeEnabled !== false);
+    setRegistrationEmailConfirmRequired(props.settings.registrationEmailConfirmRequired === true);
+    setEmail2faEnabled(props.settings.email2faEnabled === true);
     setEmailEnabled(props.settings.email?.enabled === true);
     setEmailFromEmail(props.settings.email?.fromEmail || '');
     setEmailFromName(props.settings.email?.fromName || '');
@@ -129,6 +133,24 @@ export default function AdminPage(props: AdminPageProps) {
               disabled={props.loading || props.settingsLoading}
             />
           </label>
+          <label className="field">
+            <span>{t('txt_registration_email_confirm_required')}</span>
+            <input
+              type="checkbox"
+              checked={registrationEmailConfirmRequired}
+              onChange={(e) => setRegistrationEmailConfirmRequired((e.currentTarget as HTMLInputElement).checked)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
+          <label className="field">
+            <span>{t('txt_email_2fa_enabled')}</span>
+            <input
+              type="checkbox"
+              checked={email2faEnabled}
+              onChange={(e) => setEmail2faEnabled((e.currentTarget as HTMLInputElement).checked)}
+              disabled={props.loading || props.settingsLoading}
+            />
+          </label>
           <div className="actions">
             <button
               type="button"
@@ -137,6 +159,8 @@ export default function AdminPage(props: AdminPageProps) {
               onClick={() => void props.onSaveSettings({
                 registrationEnabled,
                 emailChangeEnabled,
+                registrationEmailConfirmRequired,
+                email2faEnabled,
               })}
             >
               {t('txt_save')}

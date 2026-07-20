@@ -23,7 +23,7 @@ export interface Env {
 }
 
 export type UserRole = 'owner' | 'admin' | 'user';
-export type UserStatus = 'active' | 'banned';
+export type UserStatus = 'active' | 'banned' | 'pending';
 
 // Organization user role (matches Bitwarden integer constants)
 // 0 = Owner, 1 = Admin, 2 = User, 3 = Manager, 4 = Custom

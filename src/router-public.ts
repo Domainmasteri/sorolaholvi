@@ -12,12 +12,14 @@ import {
   handleFillAssistForms,
   handleFillAssistManifest,
 } from './handlers/fill-assist';
-import { handleToken, handlePrelogin, handleRevocation } from './handlers/identity';
+import { handleToken, handlePrelogin, handleRevocation, handleSendLoginEmail } from './handlers/identity';
 import { handleGetAccountPasskeyAssertionOptions } from './handlers/account-passkeys';
 import {
   handleRegister,
   handleGetPasswordHint,
   handleRecoverTwoFactor,
+  handleVerifyEmailToken,
+  handleResendRegistrationConfirmEmail,
 } from './handlers/accounts';
 import {
   handleCreateAuthRequest,
@@ -503,19 +505,12 @@ export async function handlePublicRoute(
   const publicMailBackedPaths = new Set([
     '/api/accounts/resend-new-device-otp',
     '/accounts/resend-new-device-otp',
-    '/api/accounts/register/send-verification-email',
-    '/accounts/register/send-verification-email',
-    '/identity/accounts/register/send-verification-email',
     '/api/accounts/register/verification-email-clicked',
     '/accounts/register/verification-email-clicked',
     '/identity/accounts/register/verification-email-clicked',
     '/api/accounts/register/finish',
     '/accounts/register/finish',
     '/identity/accounts/register/finish',
-    '/api/accounts/verify-email-token',
-    '/accounts/verify-email-token',
-    '/api/two-factor/send-email-login',
-    '/two-factor/send-email-login',
   ]);
   if (publicMailBackedPaths.has(path) && method === 'POST') {
     const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
@@ -526,6 +521,40 @@ export async function handlePublicRoute(
       return unsupportedResponse('Email delivery is disabled by the administrator.');
     }
     return unsupportedResponse('Email delivery is not supported by this server.');
+  }
+
+  // Email confirmation for new registrations.
+  if (
+    (path === '/api/accounts/verify-email-token' || path === '/accounts/verify-email-token') &&
+    method === 'POST'
+  ) {
+    const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
+    if (blocked) return blocked;
+    return handleVerifyEmailToken(request, env);
+  }
+
+  // Resend registration confirmation email.
+  if (
+    (
+      path === '/api/accounts/register/send-verification-email' ||
+      path === '/accounts/register/send-verification-email' ||
+      path === '/identity/accounts/register/send-verification-email'
+    ) &&
+    method === 'POST'
+  ) {
+    const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
+    if (blocked) return blocked;
+    return handleResendRegistrationConfirmEmail(request, env);
+  }
+
+  // Resend login email OTP.
+  if (
+    (path === '/api/two-factor/send-email-login' || path === '/two-factor/send-email-login') &&
+    method === 'POST'
+  ) {
+    const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
+    if (blocked) return blocked;
+    return handleSendLoginEmail(request, env);
   }
 
   if (path === '/api/accounts/password-hint' && method === 'POST') {

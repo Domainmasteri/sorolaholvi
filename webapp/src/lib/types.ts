@@ -610,6 +610,8 @@ export interface AdminSystemSettings {
   registrationEnabled: boolean;
   emailChangeEnabled: boolean;
   email: AdminEmailSettings;
+  registrationEmailConfirmRequired: boolean;
+  email2faEnabled: boolean;
 }
 
 export type AuditLogCategory = 'auth' | 'security' | 'device' | 'data' | 'system';
