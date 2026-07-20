@@ -115,15 +115,20 @@ export async function sendSmtpEmail(
   }
 }
 
-/** Generate a random numeric OTP of the given digit length. */
+/** Generate a random numeric OTP of the given digit length. Uses rejection sampling to avoid modulo bias. */
 export function generateOtpCode(digits: number = 6): string {
   const min = Math.pow(10, digits - 1);
-  const max = Math.pow(10, digits) - 1;
-  const range = max - min + 1;
-  const bytes = new Uint8Array(4);
-  crypto.getRandomValues(bytes);
-  const rand = ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0;
-  return String(min + (rand % range));
+  const max = Math.pow(10, digits);
+  const range = max - min;
+  // Largest multiple of range that fits in a Uint32 — reject values above this to eliminate modulo bias.
+  const limit = 0x100000000 - (0x100000000 % range);
+  const buf = new Uint32Array(1);
+  let value: number;
+  do {
+    crypto.getRandomValues(buf);
+    value = buf[0];
+  } while (value >= limit);
+  return String(min + (value % range));
 }
 
 /** Mask an email address for display: a**b@example.com */

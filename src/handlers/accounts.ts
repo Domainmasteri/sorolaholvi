@@ -24,6 +24,7 @@ const YUBICO_CLIENT_ID_CONFIG_KEY = 'globalSettings__yubico__clientId';
 const YUBICO_KEY_CONFIG_KEY = 'globalSettings__yubico__key';
 const EMAIL_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const EMAIL_OTP_PURPOSE_REGISTRATION = 'registration';
+const EMAIL_OTP_PURPOSE_LOGIN = 'login';
 
 // CONTRACT:
 // users.master_password_hash is server-side login verification only. It does
@@ -1680,7 +1681,7 @@ export async function handleSendTwoFactorEmail(request: Request, env: Env, userI
 
   const otpCode = generateOtpCode(6);
   const otpId = generateUUID();
-  await storage.saveEmailOtp(otpId, user.id, user.email, 'login', otpCode, EMAIL_OTP_TTL_MS);
+  await storage.saveEmailOtp(otpId, user.id, user.email, EMAIL_OTP_PURPOSE_LOGIN, otpCode, EMAIL_OTP_TTL_MS);
   const appName = 'NodeWarden';
   const html = `<p>Your ${appName} two-step verification code is:</p><h2>${otpCode}</h2><p>This code expires in 10 minutes. Do not share it with anyone.</p>`;
   const text = `Your ${appName} two-step verification code is: ${otpCode}\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
